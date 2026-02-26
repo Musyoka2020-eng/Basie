@@ -1,0 +1,261 @@
+/* =============================================
+ * GAME SHELL — Top-level layout wrapper
+ * ============================================= */
+.game-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--clr-bg-base);
+}
+
+/* =============================================
+ * GAME LAYOUT — Sidebar + Main
+ * ============================================= */
+.game-layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+.game-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6);
+  scrollbar-width: thin;
+  scrollbar-color: var(--clr-border) transparent;
+}
+
+.game-main::-webkit-scrollbar { width: 6px; }
+.game-main::-webkit-scrollbar-track { background: transparent; }
+.game-main::-webkit-scrollbar-thumb {
+  background: var(--clr-border);
+  border-radius: var(--radius-full);
+}
+
+/* =============================================
+ * GRID HELPERS
+ * ============================================= */
+/* buildings-container: wraps all category sections */
+.buildings-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5, 1.25rem);
+}
+
+.buildings-grid,
+.units-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+/* Heroes view is a flex column: control bar on top, card grid below */
+.heroes-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heroes-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.heroes-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--space-10);
+  color: var(--clr-text-muted);
+  font-size: var(--text-sm);
+}
+
+
+
+.tech-tree {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.combat-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+/* =============================================
+ * VIEW SECTIONS
+ * ============================================= */
+.view {
+  animation: viewFadeIn var(--transition-base) both;
+}
+
+.view-header {
+  margin-bottom: var(--space-2);
+}
+
+.view-header h2 {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--clr-text-primary);
+}
+
+.view-subtitle {
+  font-size: var(--text-sm);
+  color: var(--clr-text-muted);
+  margin-top: var(--space-1);
+}
+
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* =============================================
+ * AUTH SCREEN
+ * ============================================= */
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, hsla(270,60%,30%,0.4), transparent),
+    var(--clr-bg-base);
+  z-index: var(--z-modal);
+}
+
+.auth-card {
+  width: 400px;
+  background: var(--clr-bg-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-lg), var(--shadow-primary);
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.auth-logo-icon {
+  font-size: 2.5rem;
+  display: block;
+}
+
+.auth-logo-title {
+  font-size: var(--text-3xl);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  background: linear-gradient(135deg, var(--clr-primary-light), var(--clr-gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-top: var(--space-2);
+}
+
+.auth-logo-sub {
+  font-size: var(--text-sm);
+  color: var(--clr-text-muted);
+  margin-top: var(--space-1);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--clr-text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.form-input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-md);
+  color: var(--clr-text-primary);
+  font-size: var(--text-base);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-input::placeholder { color: var(--clr-text-muted); }
+
+.form-input:focus {
+  border-color: var(--clr-primary);
+  box-shadow: 0 0 0 3px var(--clr-primary-muted);
+}
+
+.auth-error {
+  color: var(--clr-danger);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* =============================================
+ * TRAINING QUEUE
+ * ============================================= */
+.training-queue {
+  margin-top: var(--space-8);
+  background: var(--clr-bg-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.training-queue h3 {
+  color: var(--clr-text-secondary);
+  font-size: var(--text-md);
+  margin-bottom: var(--space-4);
+}
+
+/* =============================================
+ * CAMPAIGN & BATTLE LOG
+ * ============================================= */
+.campaign-panel, .battle-log-panel {
+  background: var(--clr-bg-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.campaign-panel h3, .battle-log-panel h3 {
+  color: var(--clr-text-secondary);
+  font-size: var(--text-md);
+  margin-bottom: var(--space-4);
+}
+
+#battle-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.quests-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}

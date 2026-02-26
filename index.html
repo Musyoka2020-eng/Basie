@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Basie — Base Building Command Center</title>
+  <meta name="description" content="A premium browser-based base building and management game featuring resource collection, unit training, heroes, and monster combat." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/base/reset.css" />
+  <link rel="stylesheet" href="css/base/variables.css" />
+  <link rel="stylesheet" href="css/base/typography.css" />
+  <link rel="stylesheet" href="css/layout/grid.css" />
+  <link rel="stylesheet" href="css/layout/header.css" />
+  <link rel="stylesheet" href="css/layout/sidebar.css" />
+  <link rel="stylesheet" href="css/components/buttons.css" />
+  <link rel="stylesheet" href="css/components/cards.css" />
+  <link rel="stylesheet" href="css/components/modals.css" />
+  <link rel="stylesheet" href="css/components/notifications.css" />
+  <link rel="stylesheet" href="css/components/resources.css" />
+  <link rel="stylesheet" href="css/components/tabs.css" />
+  <link rel="stylesheet" href="css/components/progress.css" />
+  <link rel="stylesheet" href="css/components/worldmap.css" />
+  <link rel="stylesheet" href="css/components/battle.css" />
+  <link rel="stylesheet" href="css/components/barracks.css" />
+  <link rel="stylesheet" href="css/components/tooltip.css" />
+  <link rel="stylesheet" href="css/utilities/helpers.css" />
+  <link rel="stylesheet" href="css/components/story.css" />
+  <link rel="stylesheet" href="css/components/inventory.css" />
+  <link rel="stylesheet" href="css/components/gacha.css" />
+</head>
+<body>
+
+  <!-- NOTIFICATION TOAST CONTAINER -->
+  <div id="notification-container" aria-live="polite" aria-label="Notifications"></div>
+
+  <!-- MODALS OVERLAY -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" tabindex="-1">
+    <div id="modal-content" class="modal-content"></div>
+  </div>
+
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <span class="auth-logo-icon">⚔️</span>
+        <h1 class="auth-logo-title">BASIE</h1>
+        <p class="auth-logo-sub">Command. Build. Conquer.</p>
+      </div>
+      <div class="auth-tabs">
+        <button class="tab-btn active" id="auth-login-tab" data-tab="login">Login</button>
+        <button class="tab-btn" id="auth-register-tab" data-tab="register">Register</button>
+      </div>
+      <form id="auth-form" class="auth-form" novalidate>
+        <div id="auth-register-fields" class="hidden">
+          <div class="form-group">
+            <label class="form-label" for="auth-username">Commander Name</label>
+            <input class="form-input" type="text" id="auth-username" placeholder="e.g. Lord Arcturus" autocomplete="username" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="auth-email">Email</label>
+          <input class="form-input" type="email" id="auth-email" placeholder="you@realm.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="auth-password">Password</label>
+          <input class="form-input" type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <p id="auth-error" class="auth-error hidden"></p>
+        <button type="submit" class="btn btn-primary btn-full" id="auth-submit">Login</button>
+        <button type="button" class="btn btn-ghost btn-full" id="auth-guest">⚔️ Play as Guest</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- GAME SHELL (Hidden until auth) -->
+  <div id="game-shell" class="game-shell hidden">
+
+    <!-- HEADER -->
+    <header class="game-header" id="game-header">
+      <div class="header-brand">
+        <span class="header-logo">⚔️</span>
+        <span class="header-title">BASIE</span>
+      </div>
+      <!-- RESOURCE BAR -->
+      <div class="resource-bar" id="resource-bar">
+        <div class="resource-chip" id="res-gold" title="Gold">
+          <span class="res-icon">💰</span>
+          <div class="res-data">
+            <span class="res-name">Gold</span>
+            <span class="res-value" id="v-gold">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-gold">/ 5k</span>
+            <span class="res-rate" id="r-gold">+0/s</span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-wood" title="Wood">
+          <span class="res-icon">🪵</span>
+          <div class="res-data">
+            <span class="res-name">Wood</span>
+            <span class="res-value" id="v-wood">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-wood">/ 5k</span>
+            <span class="res-rate" id="r-wood">+0/s</span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-stone" title="Stone">
+          <span class="res-icon">🪨</span>
+          <div class="res-data">
+            <span class="res-name">Stone</span>
+            <span class="res-value" id="v-stone">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-stone">/ 5k</span>
+            <span class="res-rate" id="r-stone">+0/s</span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-food" title="Food">
+          <span class="res-icon">🌾</span>
+          <div class="res-data">
+            <span class="res-name">Food</span>
+            <span class="res-value" id="v-food">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-food">/ 1k</span>
+            <span class="res-rate" id="r-food">+0/s</span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-mana" title="Mana">
+          <span class="res-icon">💎</span>
+          <div class="res-data">
+            <span class="res-name">Mana</span>
+            <span class="res-value" id="v-mana">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-mana">/ 500</span>
+            <span class="res-rate" id="r-mana">+0/s</span>
+          </div>
+        </div>
+      </div>
+      <!-- HEADER ACTIONS -->
+      <div class="header-actions">
+        <button class="header-icon-btn" id="btn-inventory" title="Inventory" aria-label="Inventory">🎒</button>
+        <button class="header-icon-btn" id="btn-mail" title="Inbox" aria-label="Inbox">
+          📬 <span class="badge hidden" id="mail-badge">0</span>
+        </button>
+        <button class="header-icon-btn" id="btn-settings" title="Settings" aria-label="Settings">⚙️</button>
+        <div class="player-chip" id="player-chip">
+          <span class="player-avatar" id="player-avatar">👑</span>
+          <div class="player-data">
+            <span class="player-name" id="player-name">Commander</span>
+            <span class="player-level" id="player-level">Lv. 1</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN LAYOUT -->
+    <div class="game-layout">
+
+      <!-- LEFT SIDEBAR: NAV -->
+      <nav class="game-sidebar" id="game-sidebar" aria-label="Game Navigation">
+        <ul class="nav-list">
+          <li><button class="nav-btn active" data-view="base"     id="nav-base"     aria-label="Base">🏰 <span>Base</span></button></li>
+          <li><button class="nav-btn"         data-view="barracks" id="nav-barracks" aria-label="Barracks">⚔️ <span>Barracks</span></button></li>
+          <li><button class="nav-btn"         data-view="heroes"   id="nav-heroes"   aria-label="Heroes">🦸 <span>Heroes</span></button></li>
+          <li><button class="nav-btn"         data-view="combat"   id="nav-combat"   aria-label="Combat">🔥 <span>Combat</span></button></li>
+          <li><button class="nav-btn"         data-view="research" id="nav-research" aria-label="Research">🔬 <span>Research</span></button></li>
+          <li><button class="nav-btn"         data-view="quests"   id="nav-quests"   aria-label="Quests">📜 <span>Quests</span></button></li>
+          <li><button class="nav-btn"         data-view="market"   id="nav-market"   aria-label="Market">🏪 <span>Market</span></button></li>
+          <li><button class="nav-btn"         data-view="shop"     id="nav-shop"     aria-label="Shop">🛒 <span>Shop</span></button></li>
+        </ul>
+      </nav>
+
+      <!-- MAIN VIEW PANEL -->
+      <main class="game-main" id="game-main">
+
+        <!-- BASE VIEW -->
+        <section class="view active" id="view-base">
+          <div class="view-header">
+            <h2>🏰 Base Command</h2>
+            <p class="view-subtitle">Manage and upgrade your structures</p>
+          </div>
+          <div id="build-queue-panel"></div>
+          <div class="buildings-grid" id="buildings-grid"></div>
+        </section>
+
+        <!-- BARRACKS VIEW -->
+        <section class="view hidden" id="view-barracks">
+          <div class="view-header">
+            <h2>⚔️ Barracks</h2>
+            <p class="view-subtitle">Train and manage your military forces</p>
+          </div>
+          <div class="barracks-layout">
+            <!-- Training Queue (visible only when active) -->
+            <div class="barracks-section" style="display:none">
+              <div class="barracks-section-header">
+                <h3><span class="section-icon">⏱️</span> Training Queue</h3>
+              </div>
+              <div class="training-queue-container">
+                <div class="training-queue-list" id="training-queue-list"></div>
+              </div>
+            </div>
+
+            <!-- Tab System for Units & Squads -->
+            <div class="barracks-tabs">
+              <div class="barracks-tab-buttons">
+                <button class="barracks-tab-btn active" data-tab="tab-squads">Active Squads</button>
+                <button class="barracks-tab-btn" data-tab="tab-units">Reserve Units</button>
+              </div>
+
+              <!-- Active Squads Tab with Split Layout -->
+              <div class="barracks-tab-content active" id="tab-squads">
+                <div class="squads-layout">
+                  <!-- Left: Squad List -->
+                  <div class="squads-sidebar">
+                    <div class="squads-header">
+                      <h4>Squads</h4>
+                      <button class="btn btn-sm btn-primary" id="btn-create-squad">+ New</button>
+                    </div>
+                    <div class="squads-list" id="squads-list"></div>
+                  </div>
+                  
+                  <!-- Right: Squad Management Panel -->
+                  <div class="squad-management-panel" id="squad-management-panel">
+                    <div class="squad-panel-placeholder">Select a squad to manage</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Reserve Units Tab -->
+              <div class="barracks-tab-content" id="tab-units">
+                <div class="barracks-section">
+                  <div class="barracks-section-header">
+                    <h3><span class="section-icon">⚙️</span> Reserve Units</h3>
+                  </div>
+                  <div class="reserve-units-grid" id="units-grid"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- HEROES VIEW -->
+        <section class="view hidden" id="view-heroes">
+          <div class="view-header">
+            <h2>🦸 Heroes</h2>
+            <p class="view-subtitle">Recruit legendary champions via Hero Cards — assign them to your squad or buildings</p>
+          </div>
+          <div class="heroes-grid" id="heroes-grid"></div>
+        </section>
+
+        <!-- COMBAT VIEW -->
+        <section class="view hidden" id="view-combat">
+          <div class="view-header">
+            <h2>🔥 Combat</h2>
+            <p class="view-subtitle">Send your forces to battle monsters</p>
+          </div>
+          <div class="combat-layout">
+            <div class="campaign-panel" id="campaign-panel">
+              <h3>Monster Campaigns</h3>
+              <div id="campaign-list"></div>
+            </div>
+            <div class="battle-log-panel" id="battle-log-panel">
+              <h3>Battle Log</h3>
+              <div id="battle-log"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- RESEARCH VIEW -->
+        <section class="view hidden" id="view-research">
+          <div class="view-header">
+            <h2>🔬 Research</h2>
+            <p class="view-subtitle">Unlock new technologies and upgrades</p>
+          </div>
+          <div id="tech-tree" style="display:flex; flex-direction:column; gap:1rem;"></div>
+        </section>
+
+        <!-- QUESTS VIEW -->
+        <section class="view hidden" id="view-quests">
+          <div class="view-header">
+            <h2>📜 Quests</h2>
+            <p class="view-subtitle">Complete objectives to earn rewards</p>
+          </div>
+          <div class="quests-list" id="quests-list"></div>
+        </section>
+
+        <!-- MARKET VIEW -->
+        <section class="view hidden" id="view-market">
+          <div class="view-header">
+            <h2>🏪 Market</h2>
+            <p class="view-subtitle">Trade resources at market rates — prices rise with repeated purchases</p>
+          </div>
+          <div class="buildings-grid" id="market-grid"></div>
+        </section>
+
+        <!-- SHOP VIEW (Stub) -->
+        <section class="view hidden" id="view-shop">
+          <div class="view-header">
+            <h2>🛒 Shop</h2>
+            <p class="view-subtitle">Purchase hero cards, XP bundles, and premium items</p>
+          </div>
+          <div id="shop-container" class="shop-container"></div>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="game-statusbar" id="game-statusbar">
+      <div class="statusbar-item">
+        <span class="statusbar-dot"></span>
+        <span>Army: <strong id="sb-army">0</strong> units</span>
+      </div>
+      <div class="statusbar-item">
+        <span>🏗️ Building: <strong id="sb-building">None</strong></span>
+      </div>
+      <div class="statusbar-item">
+        <span>🔬 Research: <strong id="sb-research">None</strong></span>
+      </div>
+      <div class="statusbar-item">
+        <span>⏱️ Session: <strong id="sb-time">0m</strong></span>
+      </div>
+      <div class="statusbar-item" style="margin-left:auto">
+        <span id="sb-save" style="color:var(--clr-success)">✅ Saved</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Story Modal -->
+  <div id="story-modal-overlay" class="story-modal-overlay hidden">
+    <div id="story-modal-panel" class="story-modal-panel"></div>
+  </div>
+
+  <!-- Inventory slide-in panel (content injected by InventoryUI) -->
+  <div id="inventory-panel-overlay"></div>
+  <div id="inventory-panel"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

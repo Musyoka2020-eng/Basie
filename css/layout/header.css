@@ -1,0 +1,115 @@
+/* =============================================
+ * GAME HEADER
+ * ============================================= */
+.game-header {
+  height: var(--header-height);
+  background: var(--clr-bg-surface);
+  border-bottom: 1px solid var(--clr-border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+  position: relative;
+  z-index: var(--z-base);
+  flex-shrink: 0;
+}
+
+/* Brand */
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.header-logo { font-size: 1.5rem; }
+
+.header-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  background: linear-gradient(130deg, var(--clr-primary-light), var(--clr-gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Resource Bar */
+.resource-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.resource-bar::-webkit-scrollbar { display: none; }
+
+/* Header Actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.header-icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.header-icon-btn:hover {
+  background: var(--clr-bg-hover);
+  border-color: var(--clr-border-light);
+  transform: translateY(-1px);
+}
+
+/* Player Chip in Header */
+.player-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.player-chip:hover {
+  background: var(--clr-bg-hover);
+  border-color: var(--clr-primary);
+}
+
+.player-avatar { font-size: 1.2rem; }
+
+.player-data {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.player-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--clr-text-primary);
+}
+
+.player-level {
+  font-size: var(--text-xs);
+  color: var(--clr-primary-light);
+  font-weight: 500;
+}

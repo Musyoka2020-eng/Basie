@@ -1,0 +1,498 @@
+/* =======================================================================
+   gacha.css  — Gacha modal, hero skills, awakening stars, fragments
+   ======================================================================= */
+
+/* ── Gacha Overlay & Modal ─────────────────────────────────────────────── */
+
+.gacha-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: gacha-fade-in 0.2s ease;
+}
+
+.gacha-overlay.hidden {
+  display: none;
+}
+
+@keyframes gacha-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.gacha-modal {
+  background: var(--color-bg-secondary, #1a1a2e);
+  border: 1px solid var(--color-border, #2a2a4a);
+  border-radius: 16px;
+  padding: 2rem;
+  width: min(480px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.gacha-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gacha-modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary, #e8e8f0);
+}
+
+.gacha-close-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted, #888);
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.gacha-close-btn:hover {
+  color: var(--color-text-primary, #e8e8f0);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ── Dice Stage ────────────────────────────────────────────────────────── */
+
+.gacha-dice-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0;
+}
+
+.gacha-dice {
+  font-size: 5rem;
+  line-height: 1;
+  display: inline-block;
+  user-select: none;
+}
+
+.gacha-dice--spin {
+  animation: dice-spin 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes dice-spin {
+  0%   { transform: scale(1)    rotate(0deg);   filter: brightness(1); }
+  20%  { transform: scale(1.3)  rotate(90deg);  filter: brightness(1.5); }
+  40%  { transform: scale(0.9)  rotate(200deg); filter: brightness(0.8); }
+  60%  { transform: scale(1.4)  rotate(310deg); filter: brightness(1.8); }
+  80%  { transform: scale(1.1)  rotate(380deg); filter: brightness(1.2); }
+  100% { transform: scale(1)    rotate(360deg); filter: brightness(1); }
+}
+
+.gacha-rolling-text {
+  font-size: 0.9rem;
+  color: var(--color-text-muted, #888);
+  letter-spacing: 0.08em;
+}
+
+/* ── Result Card ───────────────────────────────────────────────────────── */
+
+.gacha-result-card {
+  border-radius: 12px;
+  padding: 1.25rem;
+  border: 2px solid transparent;
+  background: var(--color-bg-tertiary, #111128);
+  animation: result-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes result-pop {
+  from { opacity: 0; transform: scale(0.75); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.gacha-result--common {
+  border-color: #6b7280;
+  box-shadow: 0 0 18px rgba(107, 114, 128, 0.3);
+}
+
+.gacha-result--rare {
+  border-color: #3b82f6;
+  box-shadow: 0 0 22px rgba(59, 130, 246, 0.4);
+}
+
+.gacha-result--legendary {
+  border-color: #f59e0b;
+  box-shadow: 0 0 28px rgba(245, 158, 11, 0.5);
+}
+
+.gacha-result--resource {
+  border-color: #10b981;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.3);
+}
+
+.gacha-result--buff {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.35);
+}
+
+.gacha-result--xp_item {
+  border-color: #f472b6;
+  box-shadow: 0 0 16px rgba(244, 114, 182, 0.3);
+}
+
+.gacha-result-icon {
+  font-size: 3.5rem;
+  text-align: center;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.gacha-result-meta {
+  text-align: center;
+}
+
+.gacha-result-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-primary, #e8e8f0);
+  margin-bottom: 0.25rem;
+}
+
+.gacha-result-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #888);
+}
+
+.gacha-result-tier-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+}
+
+.gacha-result-tier-badge--common    { background: #374151; color: #9ca3af; }
+.gacha-result-tier-badge--rare      { background: #1e3a5f; color: #60a5fa; }
+.gacha-result-tier-badge--legendary { background: #451a03; color: #fbbf24; }
+
+.gacha-dup-notice {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #f59e0b;
+  text-align: center;
+}
+
+/* Fragment progress inside result card */
+.gacha-frag-bar-wrap {
+  margin-top: 0.75rem;
+}
+
+.gacha-frag-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #888);
+  margin-bottom: 0.3rem;
+}
+
+.gacha-frag-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.gacha-frag-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.gacha-summon-ready {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #a78bfa;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* ── Action Row (Roll Again + Close) ───────────────────────────────────── */
+
+.gacha-action-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.gacha-action-row .btn {
+  flex: 1;
+}
+
+/* ── Session History ────────────────────────────────────────────────────── */
+
+.gacha-history {
+  border-top: 1px solid var(--color-border, #2a2a4a);
+  padding-top: 0.75rem;
+}
+
+.gacha-history-title {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+
+.gacha-history-list {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gacha-history-chip {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-secondary, #bbb);
+  border: 1px solid transparent;
+}
+
+.gacha-history-chip--hero      { border-color: #f59e0b; color: #fbbf24; }
+.gacha-history-chip--fragment  { border-color: #8b5cf6; color: #a78bfa; }
+.gacha-history-chip--resource  { border-color: #10b981; color: #34d399; }
+.gacha-history-chip--buff      { border-color: #8b5cf6; color: #c4b5fd; }
+.gacha-history-chip--xp_item   { border-color: #f472b6; color: #f9a8d4; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HERO PANEL — Stars, Skills, Fragments, Awakening
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Awakening stars ────────────────────────────────────────────────────── */
+
+.hero-stars-row {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin: 0.35rem 0;
+}
+
+.hero-star {
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+
+.hero-star--filled  { color: #f59e0b; }
+.hero-star--empty   { color: #374151; }
+.hero-star--filled:hover { transform: scale(1.15); }
+
+/* ── Fragment progress bar (in hero roster / recruit section) ─────────── */
+
+.hero-frag-progress-bar-wrap {
+  margin: 0.5rem 0;
+}
+
+.hero-frag-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #888);
+  margin-bottom: 0.2rem;
+}
+
+.hero-frag-progress-track {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.hero-frag-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+/* ── Skills section ─────────────────────────────────────────────────────── */
+
+.hero-skills-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.hero-skills-section-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted, #888);
+  margin-bottom: 0.5rem;
+}
+
+.hero-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.hero-skill-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+}
+
+.hero-skill-slot--passive {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.hero-skill-slot--active {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.hero-skill-slot--locked {
+  opacity: 0.45;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.hero-skill-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  width: 1.4rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.hero-skill-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-skill-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-primary, #e8e8f0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-skill-desc {
+  font-size: 0.68rem;
+  color: var(--color-text-muted, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-skill-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.hero-skill-badge--passive  { background: #312e81; color: #a5b4fc; }
+.hero-skill-badge--active   { background: #451a03; color: #fde68a; }
+.hero-skill-badge--locked   { background: #1f2937; color: #6b7280; }
+
+.hero-skill-unlock-hint {
+  font-size: 0.65rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+/* ── Awakening section ─────────────────────────────────────────────────── */
+
+.hero-awaken-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.hero-awaken-section-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted, #888);
+  margin-bottom: 0.5rem;
+}
+
+.hero-awaken-stars-header {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #bbb);
+  margin-bottom: 0.5rem;
+}
+
+.hero-awaken-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.hero-awaken-actions .btn {
+  flex: 1;
+  min-width: 120px;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.75rem;
+}
+
+.hero-awaken-full {
+  font-size: 0.82rem;
+  color: #f59e0b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ── Summon-from-fragments button in recruit section ───────────────────── */
+
+.btn-summon-frags {
+  margin-top: 0.5rem;
+  width: 100%;
+  font-size: 0.78rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SHOP — Featured badge
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.shop-item-featured {
+  position: relative;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.25);
+}
+
+.shop-featured-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: #f59e0b;
+  color: #000;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0 10px 0 8px;
+  line-height: 1.4;
+}

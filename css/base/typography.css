@@ -1,0 +1,47 @@
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 400;
+  color: var(--clr-text-primary);
+  background-color: var(--clr-bg-base);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--clr-text-primary);
+}
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-lg); }
+h5 { font-size: var(--text-md); }
+h6 { font-size: var(--text-base); }
+
+p {
+  color: var(--clr-text-secondary);
+  line-height: 1.6;
+}
+
+.text-primary   { color: var(--clr-primary); }
+.text-gold      { color: var(--clr-gold); }
+.text-success   { color: var(--clr-success); }
+.text-danger    { color: var(--clr-danger); }
+.text-warning   { color: var(--clr-warning); }
+.text-muted     { color: var(--clr-text-muted); }
+.text-secondary { color: var(--clr-text-secondary); }
+
+.font-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+}

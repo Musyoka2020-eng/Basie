@@ -1,0 +1,66 @@
+/* =============================================
+ * GAME SIDEBAR / NAV
+ * ============================================= */
+.game-sidebar {
+  background: var(--clr-bg-surface);
+  border-right: 1px solid var(--clr-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-3);
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--clr-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--clr-primary-muted), transparent);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.nav-btn:hover {
+  color: var(--clr-text-primary);
+  background: var(--clr-bg-elevated);
+  border-color: var(--clr-border);
+}
+
+.nav-btn.active {
+  color: var(--clr-text-primary);
+  background: var(--clr-bg-active);
+  border-color: var(--clr-primary);
+  box-shadow: var(--shadow-primary);
+}
+
+.nav-btn.active::before { opacity: 1; }
+.nav-btn.active span, .nav-btn:hover span { color: inherit; }
+
+.nav-btn span {
+  position: relative;
+  z-index: 1;
+}

@@ -1,0 +1,209 @@
+/* =============================================
+ * STORY MODAL — Chapter dialogue overlay
+ * ============================================= */
+
+.story-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.story-modal-overlay.hidden { display: none; }
+
+.story-modal-panel {
+  background: var(--clr-surface-raised, #1e1e2e);
+  border: 1px solid var(--clr-border, rgba(255,255,255,0.12));
+  border-radius: var(--radius-lg, 16px);
+  max-width: 560px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Header ─── */
+.story-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4, 1rem);
+  padding: var(--space-5, 1.25rem) var(--space-5, 1.25rem) var(--space-3, 0.75rem);
+  border-bottom: 1px solid var(--clr-border, rgba(255,255,255,0.08));
+}
+
+.story-chapter-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.story-chapter-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.story-chapter-arc {
+  display: inline-block;
+  background: rgba(var(--clr-primary-rgb, 100, 120, 255), 0.2);
+  color: var(--clr-primary, #7c83ff);
+  border: 1px solid rgba(var(--clr-primary-rgb, 100, 120, 255), 0.35);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--text-xs, 0.7rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 10px;
+  margin-bottom: var(--space-1, 0.25rem);
+}
+
+.story-chapter-title {
+  font-size: var(--text-lg, 1.1rem);
+  font-weight: 700;
+  color: var(--clr-text, #e0e0e0);
+  margin: 0;
+}
+
+.story-skip-btn {
+  background: none;
+  border: none;
+  color: var(--clr-text-muted, #888);
+  font-size: var(--text-sm, 0.85rem);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-md, 8px);
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.story-skip-btn:hover {
+  color: var(--clr-text, #e0e0e0);
+  background: rgba(255,255,255,0.06);
+}
+
+/* ─── Dialogue bubbles ─── */
+.story-dialogue {
+  padding: var(--space-5, 1.25rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+  min-height: 120px;
+}
+
+.story-bubble {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: var(--radius-md, 10px);
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+}
+
+@keyframes storyBubbleIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.story-bubble-new {
+  animation: storyBubbleIn 0.3s ease both;
+}
+
+.story-speaker {
+  font-size: var(--text-xs, 0.7rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--clr-gold, #f0c060);
+  margin-bottom: var(--space-1, 0.25rem);
+}
+
+.story-text {
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--clr-text, #e0e0e0);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ─── Footer ─── */
+.story-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3, 0.75rem) var(--space-5, 1.25rem) var(--space-5, 1.25rem);
+  gap: var(--space-3, 0.75rem);
+  border-top: 1px solid var(--clr-border, rgba(255,255,255,0.08));
+}
+
+.story-line-counter {
+  font-size: var(--text-xs, 0.7rem);
+  color: var(--clr-text-muted, #888);
+  flex-shrink: 0;
+}
+
+.story-rewards {
+  display: flex;
+  gap: var(--space-2, 0.5rem);
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.story-reward-chip {
+  background: rgba(var(--clr-gold-rgb, 240, 192, 96), 0.12);
+  border: 1px solid rgba(var(--clr-gold-rgb, 240, 192, 96), 0.3);
+  color: var(--clr-gold, #f0c060);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--text-xs, 0.7rem);
+  font-weight: 600;
+  padding: 2px 10px;
+}
+
+/* ─── Chapter Log (in QuestsUI story tab) ─── */
+.chapter-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-4, 1rem) 0;
+}
+
+.chapter-log-card {
+  background: var(--clr-surface-raised, #1e1e2e);
+  border: 1px solid var(--clr-border, rgba(255,255,255,0.08));
+  border-radius: var(--radius-md, 10px);
+  padding: var(--space-4, 1rem);
+  display: flex;
+  gap: var(--space-3, 0.75rem);
+  align-items: flex-start;
+}
+
+.chapter-log-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.chapter-log-meta { flex: 1; min-width: 0; }
+
+.chapter-log-arc {
+  font-size: var(--text-xs, 0.7rem);
+  color: var(--clr-primary, #7c83ff);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.chapter-log-title {
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--clr-text, #e0e0e0);
+  margin: 2px 0;
+}
+
+.chapter-log-dialogue {
+  font-size: var(--text-xs, 0.7rem);
+  color: var(--clr-text-muted, #888);
+  line-height: 1.5;
+  margin: 0;
+}

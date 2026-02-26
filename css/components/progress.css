@@ -1,0 +1,435 @@
+/* =============================================
+ * PROGRESS BARS
+ * ============================================= */
+.progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--clr-bg-elevated);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--clr-border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width var(--transition-base);
+  position: relative;
+}
+
+/* Shimmer on active bars */
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, hsla(0,0%,100%,0.2) 50%, transparent 100%);
+  animation: shimmer 1.5s linear infinite;
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(200%); }
+}
+
+/* Variants */
+.progress-fill-primary  { background: linear-gradient(90deg, var(--clr-primary-dark), var(--clr-primary)); }
+.progress-fill-gold     { background: linear-gradient(90deg, hsl(38,80%,42%), var(--clr-gold)); }
+.progress-fill-xp       { background: linear-gradient(90deg, hsl(200,70%,40%), var(--clr-info)); }
+.progress-fill-hp       { background: linear-gradient(90deg, hsl(0,60%,35%), var(--clr-danger)); }
+.progress-fill-success  { background: linear-gradient(90deg, hsl(140,60%,30%), var(--clr-success)); }
+
+/* XP bar (header player) */
+.xp-bar {
+  height: 3px;
+  background: var(--clr-bg-elevated);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: 3px;
+}
+
+.xp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--clr-info), var(--clr-primary));
+  border-radius: var(--radius-full);
+  transition: width var(--transition-slow);
+}
+
+/* Build queue item */
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-md);
+}
+
+.queue-item-icon { font-size: 1.2rem; }
+.queue-item-body { flex: 1; min-width: 0; }
+.queue-item-name { font-size: var(--text-sm); font-weight: 600; }
+
+/* =============================================
+ * RESEARCH & BUILD QUEUE PANEL
+ * ============================================= */
+.research-queue-panel {
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.research-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--clr-text-primary);
+}
+
+.research-queue-capacity {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--clr-text-muted);
+  background: var(--clr-bg-surface);
+  border: 1px solid var(--clr-border);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.research-queue-slots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+
+@media (max-width: 800px) {
+  .research-queue-slots {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Individual queue slot box */
+.research-slot {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--clr-border);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 80px;
+  transition: border-color 0.2s;
+}
+
+.research-slot-locked {
+  background: rgba(0,0,0,0.2);
+  border-style: dashed;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  opacity: 0.65;
+}
+
+.research-slot-empty {
+  background: rgba(255,255,255,0.02);
+  border-style: dashed;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--clr-text-muted);
+}
+
+.research-slot-active {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: var(--clr-info);
+  box-shadow: 0 0 12px hsla(210,80%,60%,0.12);
+}
+
+.research-slot-queued {
+  background: rgba(255,184,0,0.06);
+  border-color: var(--clr-gold-muted);
+}
+
+.slot-lock-icon {
+  font-size: 1.2rem;
+  opacity: 0.6;
+}
+
+.slot-empty-icon {
+  font-size: 1.4rem;
+  opacity: 0.25;
+}
+
+.slot-label {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  font-weight: 600;
+}
+
+.slot-req {
+  font-size: 10px;
+  color: var(--clr-text-muted);
+  line-height: 1.3;
+  max-width: 120px;
+}
+
+.slot-active-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.slot-tech-icon { font-size: 1.3rem; flex-shrink: 0; }
+
+.slot-tech-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.slot-tech-name {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot-tech-level {
+  font-size: 10px;
+  color: var(--clr-text-muted);
+  margin-top: 1px;
+}
+
+.slot-cancel-btn {
+  padding: 0 6px !important;
+  height: 22px;
+  font-size: 10px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.slot-cancel-btn:hover { opacity: 1; color: var(--clr-danger) !important; }
+
+.slot-queued-badge {
+  font-size: 10px;
+  color: var(--clr-gold);
+  background: rgba(255,184,0,0.1);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Build queue badge on building card */
+.build-queue-badge {
+  font-size: var(--text-xs);
+  color: var(--clr-gold);
+  background: rgba(255,184,0,0.1);
+  border: 1px solid var(--clr-gold-muted);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+/* ─────────────────────────────────────────
+   Build Queue Strip  (#build-queue-panel)
+   Full-width horizontal bar above the grid
+───────────────────────────────────────── */
+#build-queue-panel {
+  margin-bottom: var(--space-3);
+}
+
+.bq-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  min-height: 56px;
+}
+
+/* Left label */
+.bq-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 90px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.bq-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  white-space: nowrap;
+}
+.bq-cap {
+  font-size: 10px;
+  color: var(--clr-text-muted);
+}
+
+/* Slot row */
+.bq-items {
+  display: flex;
+  gap: var(--space-2);
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* Base slot */
+.bq-slot {
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  max-width: 220px;
+  flex: 1;
+}
+
+/* Active build */
+.bq-slot-active {
+  background: rgba(var(--clr-primary-rgb, 79,140,255), 0.06);
+  border: 1px solid rgba(var(--clr-primary-rgb, 79,140,255), 0.25);
+}
+
+/* Queued */
+.bq-slot-queued {
+  background: rgba(255, 184, 0, 0.05);
+  border: 1px solid rgba(255, 184, 0, 0.2);
+}
+
+/* Empty unlocked slot */
+.bq-slot-empty {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.02);
+  border: 1px dashed var(--clr-border);
+  min-height: 44px;
+}
+.bq-slot-empty-icon {
+  font-size: 1.1rem;
+  color: var(--clr-text-muted);
+  opacity: 0.4;
+}
+.bq-slot-empty-label {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  opacity: 0.5;
+}
+
+/* Locked slot */
+.bq-slot-locked {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.02);
+  border: 1px dashed var(--clr-border);
+  opacity: 0.45;
+  min-height: 44px;
+  min-width: 100px;
+  max-width: 140px;
+  cursor: default;
+}
+.bq-slot-lock { font-size: 0.9rem; }
+.bq-slot-lock-label {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+}
+
+/* Inner row: icon + info + cancel */
+.bq-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bq-slot-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.bq-slot-info {
+  flex: 1;
+  min-width: 0;
+}
+.bq-slot-name {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bq-slot-sub {
+  font-size: 10px;
+  color: var(--clr-text-muted);
+}
+
+/* Cancel button */
+.bq-cancel {
+  background: transparent;
+  border: none;
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+}
+.bq-cancel:hover { opacity: 1; color: var(--clr-danger, #e55); }
+
+/* Queued "#N in queue" tag */
+.bq-queued-tag {
+  font-size: 10px;
+  color: var(--clr-gold);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Progress bar inside active slot (compact) */
+.bq-progress {
+  margin-top: 2px;
+}
+.bq-progress-label {
+  font-size: 10px !important;
+  margin-bottom: 2px !important;
+}
+.bq-bar {
+  height: 4px !important;
+  border-radius: 2px;
+}
+
+/* Building effect label on cards */
+.building-effect-label {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  margin-top: 2px;
+}
