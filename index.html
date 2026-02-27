@@ -210,7 +210,8 @@
           <li><button class="nav-btn"         data-view="research" id="nav-research" aria-label="Research">🔬 <span>Research</span></button></li>
           <li><button class="nav-btn"         data-view="quests"   id="nav-quests"   aria-label="Quests">📜 <span>Quests</span></button></li>
           <li><button class="nav-btn"         data-view="market"   id="nav-market"   aria-label="Market">🏪 <span>Market</span></button></li>
-          <li><button class="nav-btn"         data-view="shop"     id="nav-shop"     aria-label="Shop">🛒 <span>Shop</span></button></li>
+          <li><button class="nav-btn"         data-view="shop"       id="nav-shop"       aria-label="Shop">🛝 <span>Shop</span></button></li>
+          <li><button class="nav-btn"         data-view="challenges" id="nav-challenges" aria-label="Challenges">🏆 <span>Challenges</span><span class="badge hidden" id="challenges-badge">0</span></button></li>
         </ul>
       </nav>
 
@@ -358,7 +359,14 @@
           </div>
           <div id="shop-container" class="shop-container"></div>
         </section>
-
+        <!-- CHALLENGES VIEW -->
+        <section class="view hidden" id="view-challenges">
+          <div class="view-header">
+            <h2>🏆 Challenges</h2>
+            <p class="view-subtitle">Complete daily and weekly objectives to earn rewards</p>
+          </div>
+          <div id="challenges-list"></div>
+        </section>
       </main>
     </div>
 

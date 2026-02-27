@@ -89,6 +89,7 @@ export class NavigationUI {
     eventBus.on('building:cafeteria:shortfall', () => {
       this._s.notifications?.show('warning', '🍽️ Food Running Low', 'Cafeteria supplies are critically low — population is shrinking!');
     });
+    eventBus.on('challenges:updated', challenges => this._updateChallengesBadge(challenges));
   }
 
   // ---- RESOURCES ----
@@ -198,6 +199,17 @@ export class NavigationUI {
     if (!badge) return;
     count > 0
       ? (badge.textContent = count > 99 ? '99+' : count, badge.classList.remove('hidden'))
+      : badge.classList.add('hidden');
+  }
+
+  // ---- CHALLENGES BADGE ----
+  _updateChallengesBadge(payload) {
+    const badge = document.getElementById('challenges-badge');
+    if (!badge) return;
+    const challenges = Array.isArray(payload) ? payload : (payload?.challenges ?? []);
+    const claimable  = challenges.filter(c => c.completed && !c.claimed).length;
+    claimable > 0
+      ? (badge.textContent = claimable > 99 ? '99+' : claimable, badge.classList.remove('hidden'))
       : badge.classList.add('hidden');
   }
 }

@@ -31,7 +31,8 @@ import { InventoryUI }  from './controllers/InventoryUI.js';
 import { ShopUI }       from './controllers/ShopUI.js';
 import { GachaUI }      from './controllers/GachaUI.js';
 import { MilitaryUI }   from './controllers/MilitaryUI.js';
-import { RES_META }     from './uiUtils.js';
+import { ChallengesUI } from './controllers/ChallengesUI.js';
+import { RES_META, openModal, closeModal } from './uiUtils.js';
 import { eventBus }     from '../core/EventBus.js';
 
 export class UIManager {
@@ -143,6 +144,10 @@ export class UIManager {
       sound:    systems.sound,
     });
 
+    this._challenges = new ChallengesUI({
+      challenges: systems.challenges,
+    });
+
     this._init();
   }
 
@@ -162,6 +167,7 @@ export class UIManager {
     this._settings.init();
     this._shop.init();
     this._gacha.init();
+    this._challenges.init();
 
     // Story chapter modal
     eventBus.on('story:chapter_triggered', chapter => this._showStoryModal(chapter));
@@ -178,6 +184,62 @@ export class UIManager {
 
   /** No-op — UIManager is event-driven. Kept for GameEngine compatibility. */
   update(dt) {}
+
+  // ─────────────────────────────────────────────
+  // Daily Login Modal
+  // ─────────────────────────────────────────────
+
+  /**
+   * Shows the daily login reward modal.
+   * @param {number} day    - cycle day (1–7)
+   * @param {number} streak - consecutive login streak
+   * @param {object} rewards - resource rewards object
+   */
+  showDailyLoginModal(day, streak, rewards) {
+    const rewardRows = Object.entries(rewards)
+      .map(([k, v]) => `<div class="offline-reward-row"><span>${RES_META[k]?.icon ?? '✨'} ${k}</span><span style="color:var(--clr-success);font-family:var(--font-mono)">+${v.toLocaleString()}</span></div>`)
+      .join('');
+
+    // 7-day calendar strip
+    const calendarCells = Array.from({ length: 7 }, (_, i) => {
+      const d       = i + 1;
+      const active  = d === day ? 'login-day-active' : d < day ? 'login-day-past' : '';
+      return `<div class="login-day-cell ${active}"><span class="login-day-num">${d}</span></div>`;
+    }).join('');
+
+    const milestoneNote = streak % 30 === 0
+      ? `<p style="color:var(--clr-gold);font-size:0.85rem;text-align:center;margin:0.5rem 0">🌟 Milestone: ${streak}-day streak!</p>`
+      : '';
+
+    openModal(`
+      <div class="modal-inner">
+        <div class="modal-top">
+          <div class="modal-icon">🎁</div>
+          <div class="modal-title-block">
+            <div class="modal-title">Daily Login Reward</div>
+            <div class="modal-subtitle">🔥 Day ${day} · ${streak}-day streak</div>
+          </div>
+        </div>
+        ${milestoneNote}
+        <div class="modal-section">
+          <div class="modal-section-title">Login Streak</div>
+          <div class="login-day-strip">${calendarCells}</div>
+        </div>
+        <div class="modal-section">
+          <div class="modal-section-title">Today's Rewards</div>
+          <div class="offline-rewards">${rewardRows}</div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-gold" id="btn-login-claim">Claim Rewards</button>
+        </div>
+      </div>`);
+
+    // Deliver resources and close
+    document.getElementById('btn-login-claim')?.addEventListener('click', () => {
+      this._rm.add(rewards);
+      closeModal();
+    });
+  }
 
   // ─────────────────────────────────────────────
   // Story Chapter Modal

@@ -64,3 +64,12 @@
   position: relative;
   z-index: 1;
 }
+
+/* Badge inside a nav button — override absolute positioning to inline flow */
+.nav-btn .badge {
+  position: relative;
+  top: auto;
+  right: auto;
+  margin-left: auto;
+  z-index: 1;
+}

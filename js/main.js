@@ -23,6 +23,7 @@ import { SoundManager }        from './systems/SoundManager.js';
 import { HeroManager }         from './systems/HeroManager.js';
 import { InventoryManager }    from './systems/InventoryManager.js';
 import { AchievementManager }  from './systems/AchievementManager.js';
+import { ChallengeManager }    from './systems/ChallengeManager.js';
 import { StoryManager }        from './systems/StoryManager.js';
 import { UIManager }           from './ui/UIManager.js';
 import { TimerService }        from './ui/TimerService.js';
@@ -55,7 +56,8 @@ inventoryManager.setTechnologyManager(techManager);
 unitManager.setTechnologyManager(techManager);
 const settingsManager  = new SettingsManager(saveManager);
 const marketManager    = new MarketManager(resourceManager);
-const achievementManager = new AchievementManager(userManager, mailManager);
+const achievementManager  = new AchievementManager(userManager, mailManager);
+const challengeManager    = new ChallengeManager(resourceManager, mailManager, inventoryManager);
 const storyManager = new StoryManager();
 
 let soundManager;
@@ -73,6 +75,7 @@ engine.registerSystem(questManager);
 engine.registerSystem(mailManager);
 engine.registerSystem(heroManager);
 engine.registerSystem(marketManager);
+engine.registerSystem(challengeManager);
 
 // =============================================
 // SERIALIZATION
@@ -91,6 +94,7 @@ function getGameState() {
     heroes:       heroManager.serialize(),
     inventory:    inventoryManager.serialize(),
     achievements: achievementManager.serialize(),
+    challenges:   challengeManager.serialize(),
     story:        storyManager.serialize(),
     lastSavedTimestamp: Date.now(),
   };
@@ -110,6 +114,7 @@ function applyGameState(state) {
   heroManager.deserialize(state.heroes);
   inventoryManager.deserialize(state.inventory);
   achievementManager.deserialize(state.achievements);
+  challengeManager.deserialize(state.challenges);
   storyManager.deserialize(state.story);
 }
 
@@ -204,11 +209,18 @@ function launchGame(authScreen, gameShell) {
     market:       marketManager,
     heroes:       heroManager,
     inventory:    inventoryManager,
-    achievements: achievementManager,
+    achievements:  achievementManager,
+    challenges:    challengeManager,
     notifications: notificationManager,
     sound:        soundManager,
     story:        storyManager,
   });
+
+  // Daily login check — fires once per calendar day
+  const loginResult = userManager.checkDailyLogin();
+  if (loginResult) {
+    setTimeout(() => ui.showDailyLoginModal(loginResult.day, loginResult.streak, loginResult.rewards), 1200);
+  }
 
   // Subscribe notification manager to achievement unlocks
   eventBus.on('achievement:unlocked', d => {
@@ -219,7 +231,7 @@ function launchGame(authScreen, gameShell) {
   const offlineEvents = [];
   const offlineListeners = [
     ['building:completed', d => offlineEvents.push({ icon: '🏗️', text: `${d.building?.name ?? d.id} upgraded to Lv ${d.building?.level ?? '?'}` })],
-    ['unit:trained',       d => offlineEvents.push({ icon: '🪖', text: `${d.count ?? 1}× ${d.name ?? d.unitId} trained` })],
+    ['unit:trained',       d => offlineEvents.push({ icon: '🪖', text: `${d.count ?? 1}× ${d.tierKey ?? d.unitId ?? d.name ?? 'unit'} trained` })],
     ['tech:researched',    d => offlineEvents.push({ icon: '🔬', text: `${d.name ?? d.id} researched (Lv ${d.level ?? '?'})` })],
     ['quest:completed',    d => offlineEvents.push({ icon: '📜', text: `Quest "${d.name ?? d.questId}" completed` })],
   ];
@@ -321,9 +333,10 @@ function launchGame(authScreen, gameShell) {
     heroes: heroManager, inventory: inventoryManager, units: unitManager,
     combat: combatManager, tech: techManager, mail: mailManager,
     market: marketManager, quests: questManager, user: userManager,
-    save: () => saveManager.save(getGameState()),
-    load: () => applyGameState(saveManager.load()),
-    clearSave: () => saveManager.clear?.(),
+    save:       () => saveManager.save(getGameState()),
+    load:       () => applyGameState(saveManager.load()),
+    clearSave:  () => saveManager.clear?.(),
+    challenges: challengeManager,
   };
 
   // Fire the story start trigger after the engine is running

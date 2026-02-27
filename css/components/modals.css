@@ -505,3 +505,47 @@
   border: 1px solid var(--clr-border);
   border-radius: var(--radius-md);
 }
+
+/* =============================================
+ * DAILY LOGIN DAY STRIP
+ * ============================================= */
+.login-day-strip {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+.login-day-cell {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--clr-border);
+  background: var(--clr-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  transition: all var(--transition-base);
+}
+
+.login-day-cell.login-day-past {
+  background: var(--clr-bg-base);
+  color: var(--clr-success);
+  border-color: var(--clr-success);
+  opacity: 0.6;
+}
+
+.login-day-cell.login-day-active {
+  background: var(--clr-gold);
+  color: var(--clr-bg-base);
+  border-color: var(--clr-gold);
+  box-shadow: 0 0 10px rgba(255, 197, 66, 0.5);
+  font-size: var(--text-sm);
+}
+
+.login-day-num {
+  line-height: 1;
+}

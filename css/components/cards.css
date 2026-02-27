@@ -1570,3 +1570,213 @@
   line-height: 1.6;
   margin: 0;
 }
+
+/* ============================================================
+ * CHALLENGE CARDS
+ * ============================================================ */
+.challenges-section {
+  margin-bottom: var(--space-6);
+}
+
+.challenges-section-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--clr-text);
+  margin-bottom: var(--space-3);
+}
+
+.challenges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.challenge-card {
+  gap: var(--space-2);
+}
+
+.challenge-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.challenge-name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--clr-text-primary);
+}
+
+.challenge-desc {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  margin: 0;
+}
+
+.challenge-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.challenge-progress {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--clr-text-muted);
+  margin-right: auto;
+}
+
+.challenge-reward {
+  font-size: var(--text-xs);
+  color: var(--clr-gold);
+}
+
+.challenge-claimable {
+  border-color: var(--clr-gold);
+  box-shadow: 0 0 8px rgba(255, 197, 66, 0.25);
+}
+
+.challenge-done {
+  opacity: 0.55;
+}
+
+/* ── Challenge XP badge on card header ─────────────────────── */
+.challenge-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.challenge-xp-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--clr-gold);
+  background: rgba(255, 197, 66, 0.12);
+  border: 1px solid rgba(255, 197, 66, 0.35);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* ── Challenge Pass card ────────────────────────────────────── */
+.challenge-pass-card {
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.challenge-pass-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.challenge-pass-title {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--clr-text);
+  display: block;
+}
+
+.challenge-pass-subtitle {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  margin-top: 0.1rem;
+  display: block;
+}
+
+.challenge-pass-xp {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--clr-gold);
+}
+
+/* Track */
+.pass-track {
+  position: relative;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  margin-bottom: 2rem;
+}
+
+.pass-track-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--clr-primary, #5b8af0), var(--clr-gold));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* Chest icons along the track */
+.pass-track-milestones {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pass-chest {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--clr-surface, #1e1e2e);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  cursor: default;
+  pointer-events: all;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.pass-chest-unlocked {
+  border-color: var(--clr-gold);
+  box-shadow: 0 0 6px rgba(255, 197, 66, 0.5);
+}
+
+.pass-chest-claimed {
+  border-color: #4caf50;
+  opacity: 0.55;
+}
+
+.pass-chest-check {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 0.55rem;
+  background: #4caf50;
+  color: #fff;
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+
+.pass-chest-icon {
+  line-height: 1;
+}
+
+/* XP labels below each milestone */
+.pass-milestone-labels {
+  position: relative;
+  height: 1rem;
+}
+
+.pass-milestone-label {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--clr-text-muted);
+  white-space: nowrap;
+}
