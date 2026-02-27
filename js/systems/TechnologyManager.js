@@ -70,6 +70,25 @@ export class TechnologyManager {
   // ─────────────────────────────────────────────
 
   /**
+   * Reduce the active research timer by `seconds` seconds.
+   * @param {number} seconds
+   * @returns {{ success: boolean, remaining?: number, reason?: string }}
+   */
+  reduceActiveResearchTimer(seconds) {
+    if (!this._queue.length) return { success: false, reason: 'No research in progress.' };
+    const activeId = this._queue[0];
+    const state    = this._state.get(activeId);
+    if (!state?.researchEndsAt) return { success: false, reason: 'No research in progress.' };
+    const now = Date.now();
+    if (state.researchEndsAt <= now) return { success: false, reason: 'Research is already completing.' };
+    const skipMs = (seconds >= 999999 ? state.researchEndsAt - now + 1000 : seconds * 1000);
+    state.researchEndsAt = Math.max(now, state.researchEndsAt - skipMs);
+    eventBus.emit('tech:queueUpdated', this.getQueue());
+    const remaining = Math.max(0, state.researchEndsAt - now);
+    return { success: true, remaining, completed: remaining <= 0 };
+  }
+
+  /**
    * Queue a technology for research (next available level).
    * @param {string} techId
    * @returns {{ success: boolean, reason?: string }}
@@ -332,6 +351,12 @@ export class TechnologyManager {
    * Merges base `requires` with `levelRequirements[targetLevel]` override.
    */
   _checkRequirements(cfg, targetLevel) {
+    // HQ unlock gate — tech must appear in HQ_UNLOCK_TABLE at or below current HQ level
+    if (!this._bm.getHQUnlockedIds('techs').has(cfg.id)) {
+      const reqLv = this._bm.getRequiredHQLevel('techs', cfg.id);
+      return { met: false, reason: reqLv ? `Requires HQ Lv.${reqLv}` : 'Not yet unlockable.' };
+    }
+
     const merged = { ...(cfg.requires ?? {}), ...((cfg.levelRequirements ?? {})[targetLevel] ?? {}) };
     for (const [bId, minLv] of Object.entries(merged)) {
       if (this._bm.getLevelOf(bId) < minLv) {

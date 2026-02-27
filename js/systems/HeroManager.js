@@ -7,7 +7,8 @@
  *   not by directly spending base resources.
  *
  * Assignment:
- *   - Squad (max 3): Hero contributes aura bonuses to every battle.
+ *   - Squad (max 4 per squad): Hero contributes aura bonuses to that squad's battles.
+ *     Heroes at HQ (heroquarters) provide global combat bonuses to every battle.
  *   - Building (1 per building): Hero boosts that building's output.
  *   Both are mutually exclusive per hero.
  *
@@ -20,9 +21,11 @@ import {
   GACHA_CONFIG,
   SKILLS_CONFIG,
   AWAKENING_CONFIG,
+  BUILDINGS_CONFIG,
+  AURA_BUFF_CATEGORY,
 } from '../entities/GAME_DATA.js';
 
-const MAX_SQUAD_HEROES = 3;
+const MAX_HEROES_PER_SQUAD = 4;
 
 export class HeroManager {
   /**
@@ -44,13 +47,16 @@ export class HeroManager {
      *   xpToNext: number,
      *   stars: number,
      *   effectiveStats: { hp: number, attack: number, defense: number, speed: number },
-     *   assignment: { type: 'none'|'squad'|'building', buildingId?: string }
+     *   assignment: { type: 'none'|'squad'|'building', squadId?: string, buildingId?: string }
      * }>}
      */
     this._owned = new Map();
 
     /** Tracks active production buffs: [{value, endsAt}] */
     this._activeBuffs = [];
+
+    /** Track previous buff count to detect expiry in update() */
+    this._lastBuffCount = 0;
   }
 
   // =============================================
@@ -345,43 +351,61 @@ export class HeroManager {
   }
 
   // =============================================
-  // ASSIGNMENT — Squad (active combat)
+  // ASSIGNMENT — Squad (unified via barracks building)
+  // Heroes assigned to squads are stored as building assignments on the
+  // corresponding barracks instance: squad_1 → barracks_0, squad_2 → barracks_1, …
+  // This eliminates the dual-model split that caused cross-tab sync bugs.
   // =============================================
 
-  getSquadHeroIds() {
+  /** @private Maps a squadId to its barracks instance ID. */
+  _barracksIdForSquad(squadId) {
+    const num = parseInt(squadId?.replace('squad_', '') ?? '1', 10);
+    return `barracks_${Math.max(0, num - 1)}`;
+  }
+
+  /**
+   * Get heroIds of all squad-assigned heroes (barracks), optionally filtered by squadId.
+   * @param {string} [squadId]
+   */
+  getSquadHeroIds(squadId) {
     return [...this._owned.values()]
-      .filter(h => h.assignment?.type === 'squad')
+      .filter(h => {
+        const a = h.assignment;
+        if (a?.type !== 'building' || !a.buildingId?.startsWith('barracks_')) return false;
+        if (!squadId) return true;
+        return a.buildingId === this._barracksIdForSquad(squadId);
+      })
       .map(h => h.heroId);
   }
+
+  /** All heroes assigned to any barracks/squad (for global UI display). */
+  getAllSquadHeroIds() { return this.getSquadHeroIds(); }
 
   /** @deprecated Alias for getSquadHeroIds() */
   getActiveHeroIds() { return this.getSquadHeroIds(); }
 
   /**
-   * Assign a hero to the active squad (max 3). Clears building assignment.
-   * @param {string} heroId
+   * Return full hero records assigned to a specific squad (via barracks lookup).
+   * @param {string} squadId
    */
-  assignHeroToSquad(heroId) {
-    const hero = this._owned.get(heroId);
-    if (!hero) return { success: false, reason: 'Hero not in roster.' };
-    if (hero.assignment?.type === 'squad') return { success: false, reason: 'Already in squad.' };
-
-    if (this.getSquadHeroIds().length >= MAX_SQUAD_HEROES) {
-      return { success: false, reason: `Squad is full (${MAX_SQUAD_HEROES} heroes max).` };
-    }
-
-    hero.assignment = { type: 'squad' };
-    eventBus.emit('heroes:updated', this.getRosterWithState());
-    return { success: true };
+  getHeroesForSquad(squadId) {
+    return this.getHeroesForBuilding(this._barracksIdForSquad(squadId));
   }
 
-  /** Remove a hero from the active squad. */
+  /**
+   * Assign a hero to a specific squad. Internally stores as a barracks building assignment.
+   * Any hero can be assigned to any squad — classification is purely informational.
+   * @param {string} heroId
+   * @param {string} squadId
+   */
+  assignHeroToSquad(heroId, squadId) {
+    if (!squadId) return { success: false, reason: 'No squad specified.' };
+    return this.assignHeroToBuilding(heroId, this._barracksIdForSquad(squadId));
+  }
+
+  /** Remove a hero from their squad/barracks assignment. */
   unassignHeroFromSquad(heroId) {
-    const hero = this._owned.get(heroId);
-    if (!hero) return { success: false, reason: 'Hero not in roster.' };
-    hero.assignment = { type: 'none' };
-    eventBus.emit('heroes:updated', this.getRosterWithState());
-    return { success: true };
+    return this.unassignHero(heroId);
   }
 
   // =============================================
@@ -390,32 +414,65 @@ export class HeroManager {
 
   /**
    * Station a hero at a building to boost its output.
-   * One hero per building; clears squad assignment.
+   * Supports multiple heroes per building up to the building's heroCapacity.
+   * Also enforces the global hero slot cap from heroquarters (level × 5).
    * @param {string} heroId
-   * @param {string} buildingId
+   * @param {string} buildingId  instance ID e.g. 'mine_0'
    */
-  assignHeroToBuilding(heroId, buildingId) {
+  assignHeroToBuilding(heroId, buildingId, slotIndex = null) {
     const hero = this._owned.get(heroId);
     if (!hero) return { success: false, reason: 'Hero not in roster.' };
 
-    // Enforce fixed assignment: extract building type from instanceId (e.g. 'mine_0' → 'mine')
     const buildingType = buildingId.replace(/_\d+$/, '');
-    const heroCfg = HEROES_CONFIG[heroId];
-    const requiredType = heroCfg?.buildingBonus?.buildingType;
-    if (requiredType && requiredType !== buildingType) {
-      const BUILDING_NAMES = {
-        barracks: 'Barracks', mine: 'Gold Mine', magictower: 'Magic Tower', heroquarters: 'Hero Quarters',
-      };
-      return { success: false, reason: `${heroCfg.name} can only be stationed at the ${BUILDING_NAMES[requiredType] ?? requiredType}.` };
+    const bldgCfg = BUILDINGS_CONFIG[buildingType];
+    const isBarracks = buildingType === 'barracks';
+
+    // For barracks: evict any hero already occupying this exact slot so the new hero takes it
+    if (isBarracks && slotIndex !== null) {
+      for (const h of this._owned.values()) {
+        if (h.assignment?.type === 'building' &&
+            h.assignment.buildingId === buildingId &&
+            h.assignment.slotIndex === slotIndex &&
+            h.heroId !== heroId) {
+          h.assignment = { type: 'none' };
+          break;
+        }
+      }
     }
 
-    const existing = this.getBuildingHero(buildingId);
-    if (existing && existing.heroId !== heroId) {
-      return { success: false, reason: `${HEROES_CONFIG[existing.heroId]?.name ?? existing.heroId} is already stationed here.` };
+    // This hero is already in this exact slot — nothing to do
+    if (hero.assignment?.type === 'building' && hero.assignment.buildingId === buildingId &&
+        (slotIndex === null || hero.assignment.slotIndex === slotIndex)) {
+      return { success: false, reason: 'Already assigned to this slot.' };
     }
 
-    hero.assignment = { type: 'building', buildingId };
+    // Per-building capacity cap (from config) — for barracks, slot-aware so swapping is fine
+    const heroCapacity = bldgCfg?.heroCapacity ?? 1;
+    const heroesHere = this.getHeroesForBuilding(buildingId).filter(h => h.heroId !== heroId);
+    if (isBarracks && slotIndex !== null) {
+      // Slot-based: only block if ALL slots are taken by OTHER heroes
+      const occupiedSlots = new Set(heroesHere.map(h => h.assignment?.slotIndex));
+      occupiedSlots.delete(slotIndex); // the target slot was just cleared above
+      if (occupiedSlots.size >= heroCapacity) {
+        return { success: false, reason: `This barracks is full (${heroCapacity} heroes).` };
+      }
+    } else if (!isBarracks && heroesHere.length >= heroCapacity) {
+      return { success: false, reason: `This building can only hold ${heroCapacity} hero${heroCapacity !== 1 ? 'es' : ''}.` };
+    }
+
+    // Global hero slot cap only applies to non-barracks buildings
+    // (barracks slots represent squad leadership, not stationed production heroes)
+    if (!isBarracks) {
+      const available = this.getAvailableHeroSlots();
+      const assigned  = this.getTotalAssignedToBuildings();
+      if (hero.assignment?.type !== 'building' && assigned >= available) {
+        return { success: false, reason: `No hero slots available. Upgrade Hero Quarters to unlock more (${assigned}/${available}).` };
+      }
+    }
+
+    hero.assignment = { type: 'building', buildingId, slotIndex };
     eventBus.emit('heroes:updated', this.getRosterWithState());
+    eventBus.emit('hero:productionBonusChanged', this.getBuildingProductionBonusMap());
     return { success: true };
   }
 
@@ -428,7 +485,27 @@ export class HeroManager {
     }
     hero.assignment = { type: 'none' };
     eventBus.emit('heroes:updated', this.getRosterWithState());
+    eventBus.emit('hero:productionBonusChanged', this.getBuildingProductionBonusMap());
     return { success: true };
+  }
+
+  /**
+   * Returns a resource-keyed bonus map for all building-stationed heroes.
+   * e.g. { money: 0.25 } means +25% money production.
+   */
+  getBuildingProductionBonusMap() {
+    const bonuses = {};
+    for (const h of this._owned.values()) {
+      if (h.assignment?.type !== 'building') continue;
+      const cfg = HEROES_CONFIG[h.heroId];
+      const bb  = cfg?.buildingBonus;
+      if (!bb?.stat) continue;
+      const resourceKey = { gold_production: 'money' }[bb.stat];
+      if (!resourceKey) continue; // training_speed, mana_production, defense handled elsewhere
+      const levelMult = 1 + (h.level - 1) * 0.02; // +2% per hero level
+      bonuses[resourceKey] = (bonuses[resourceKey] ?? 0) + (bb.value ?? 0.15) * levelMult;
+    }
+    return bonuses;
   }
 
   /** Returns the hero state assigned to a building, or null. */
@@ -437,6 +514,34 @@ export class HeroManager {
       if (h.assignment?.type === 'building' && h.assignment.buildingId === buildingId) return h;
     }
     return null;
+  }
+
+  /** Returns ALL heroes assigned to a specific building instance. */
+  getHeroesForBuilding(buildingId) {
+    return [...this._owned.values()]
+      .filter(h => h.assignment?.type === 'building' && h.assignment.buildingId === buildingId);
+  }
+
+  /**
+   * Total hero slot capacity from heroquarters (level × 5).
+   * @returns {number}
+   */
+  getAvailableHeroSlots() {
+    return (this._bm?.getLevelOf('heroquarters') ?? 0) * 5;
+  }
+
+  /**
+   * Count of heroes currently assigned to non-barracks buildings.
+   * Barracks assignments are squad leaders; they don't consume building hero slots.
+   * @returns {number}
+   */
+  getTotalAssignedToBuildings() {
+    let count = 0;
+    for (const h of this._owned.values()) {
+      if (h.assignment?.type === 'building' &&
+          !h.assignment.buildingId?.startsWith('barracks_')) count++;
+    }
+    return count;
   }
 
   /** Convenience: clear any assignment from a hero. */
@@ -490,12 +595,16 @@ export class HeroManager {
   }
 
   /**
-   * Award battle XP to all squad-assigned heroes. Called by CombatManager.
+   * Award battle XP to heroes assigned to a specific squad (and HQ heroes).
    * @param {number} amount
+   * @param {string} [squadId]  If provided, only heroes of that squad gain XP.
    */
-  awardBattleXP(amount) {
+  awardBattleXP(amount, squadId) {
+    const targetBarracks = squadId ? this._barracksIdForSquad(squadId) : null;
     for (const hero of this._owned.values()) {
-      if (hero.assignment?.type !== 'squad') continue;
+      const a = hero.assignment;
+      if (a?.type !== 'building' || !a.buildingId?.startsWith('barracks_')) continue;
+      if (targetBarracks && a.buildingId !== targetBarracks) continue;
       this._applyXP(hero, HEROES_CONFIG[hero.heroId], amount);
     }
     eventBus.emit('heroes:updated', this.getRosterWithState());
@@ -503,7 +612,9 @@ export class HeroManager {
 
   /** @private */
   _applyXP(hero, cfg, amount) {
-    hero.xp += amount;
+    const safeAmount = Number(amount);
+    if (!isFinite(safeAmount) || safeAmount <= 0) return;
+    hero.xp = (isFinite(hero.xp) ? hero.xp : 0) + safeAmount;
     while (hero.xp >= hero.xpToNext) {
       hero.xp -= hero.xpToNext;
       hero.level++;
@@ -518,17 +629,27 @@ export class HeroManager {
   // =============================================
 
   /**
-   * Aggregate aura bonuses from all squad-assigned heroes.
+   * Aggregate aura bonuses from heroes assigned to a specific squad plus
+   * heroes stationed at heroquarters (global HQ heroes apply to all squads).
+   * @param {string|null} [squadId]  Null = aggregate all squad heroes (UI summary).
    * @returns {{ attackMult: number, defenseMult: number, lossReduction: number }}
    */
-  getCombatBonuses() {
+  getCombatBonuses(squadId = null) {
     let attackMult    = 1.0;
     let defenseMult   = 1.0;
     let lossReduction = 0;
     let activeSkills  = []; // Active skill effects for CombatManager
 
     for (const hero of this._owned.values()) {
-      if (hero.assignment?.type !== 'squad') continue;
+      const a = hero.assignment;
+      // Squad heroes = barracks-assigned heroes (barracks_0 → squad_1, etc.)
+      const isBarracks = a?.type === 'building' && a.buildingId?.startsWith('barracks_');
+      const targetBarracks = squadId !== null ? this._barracksIdForSquad(squadId) : null;
+      const isSquadHero = isBarracks && (targetBarracks === null || a.buildingId === targetBarracks);
+      // HQ hero: stationed at a heroquarters building (global effect on all squads)
+      const isHQHero = a?.type === 'building' &&
+        HEROES_CONFIG[hero.heroId]?.buildingBonus?.buildingType === 'heroquarters';
+      if (!isSquadHero && !isHQHero) continue;
       const cfg = HEROES_CONFIG[hero.heroId];
       if (!cfg) continue;
 
@@ -590,15 +711,109 @@ export class HeroManager {
   }
 
   /**
+   * Returns hero aura bonuses categorized by buff type (military / development / production).
+   * Covers heroes in the given barracks (or all barracks if null) plus HQ heroes.
+   * Also adds active timed buffs (production category).
+   * @param {string|null} barracksInstanceId  e.g. 'barracks_0', or null for all
+   * @returns {{ military: Array, development: Array, production: Array }}
+   */
+  getCategorizedBonuses(barracksInstanceId = null) {
+    const result = { military: [], development: [], production: [] };
+
+    for (const hero of this._owned.values()) {
+      const a = hero.assignment;
+      const isBarracks = a?.type === 'building' && a.buildingId?.startsWith('barracks_');
+      const isHQ = a?.type === 'building' &&
+        HEROES_CONFIG[hero.heroId]?.buildingBonus?.buildingType === 'heroquarters';
+      const inScope = (isBarracks && (barracksInstanceId === null || a.buildingId === barracksInstanceId)) || isHQ;
+      if (!inScope) continue;
+
+      const cfg = HEROES_CONFIG[hero.heroId];
+      if (!cfg) continue;
+
+      const auraValue = (cfg.aura?.value ?? 0) * (1 + (hero.level - 1) * 0.05)
+        + (hero.stars ?? 0) * (AWAKENING_CONFIG.perStarBonus?.auraValueBonus ?? 0);
+
+      if (cfg.aura?.type) {
+        const category = cfg.aura.buffCategory ?? AURA_BUFF_CATEGORY[cfg.aura.type] ?? 'military';
+        if (result[category]) {
+          result[category].push({
+            heroId: hero.heroId, heroName: cfg.name, heroIcon: cfg.icon,
+            classification: cfg.classification ?? 'combat',
+            auraType: cfg.aura.type,
+            auraLabel: cfg.aura.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            value: auraValue, level: hero.level, stars: hero.stars,
+          });
+        }
+      }
+
+      // Building bonus — only fires when hero is in their preferred building type
+      const bb = cfg.buildingBonus;
+      if (bb?.stat && a.buildingId?.replace(/_\d+$/, '') === bb.buildingType) {
+        const bonusCategory = bb.buffCategory ?? 'development';
+        if (result[bonusCategory]) {
+          result[bonusCategory].push({
+            heroId: hero.heroId, heroName: cfg.name, heroIcon: cfg.icon,
+            classification: cfg.classification ?? 'combat',
+            auraType: bb.stat, auraLabel: bb.label ?? bb.stat,
+            value: hero.level * 0.05, level: hero.level, stars: hero.stars,
+            isBuildingBonus: true,
+          });
+        }
+      }
+    }
+
+    // Active timed buffs → production category
+    const now = Date.now();
+    for (const b of this._activeBuffs.filter(b => b.endsAt > now)) {
+      result.production.push({
+        heroId: null, heroName: 'Timed Buff', heroIcon: '⏱️',
+        auraType: 'production_boost', auraLabel: 'Production Boost',
+        value: b.value, endsAt: b.endsAt, remaining: b.endsAt - now, isTimedBuff: true,
+      });
+    }
+
+    return result;
+  }
+
+  /**
    * Activate a production buff.
    * @param {{ value: number, durationMs: number }} buffCfg
    */
   activateBuff(buffCfg) {
-    this._activeBuffs.push({ value: buffCfg.value, endsAt: Date.now() + buffCfg.durationMs });
+    const endsAt = Date.now() + buffCfg.durationMs;
+    this._activeBuffs.push({ value: buffCfg.value, endsAt, durationMs: buffCfg.durationMs });
+    this._lastBuffCount = this._activeBuffs.length;
     eventBus.emit('buff:activated', { value: buffCfg.value, durationMs: buffCfg.durationMs });
+    eventBus.emit('buffs:updated', this.getActiveBuffsWithRemaining());
+    eventBus.emit('buffs:changed');
   }
 
   getActiveBuffs() { return this._activeBuffs.filter(b => b.endsAt > Date.now()); }
+
+  /**
+   * Returns active buffs with a `remaining` (ms) and `endsAt` field for UI countdown.
+   */
+  getActiveBuffsWithRemaining() {
+    const now = Date.now();
+    return this._activeBuffs
+      .filter(b => b.endsAt > now)
+      .map(b => ({
+        value:      b.value,
+        endsAt:    b.endsAt,
+        durationMs: b.durationMs ?? 3600000,
+        remaining:  b.endsAt - now,
+      }));
+  }
+
+  /**
+   * Returns the sum of all active production buff values (e.g. 0.5 = +50%).
+   */
+  getActiveProductionMultiplier() {
+    const now = Date.now();
+    this._activeBuffs = this._activeBuffs.filter(b => b.endsAt > now);
+    return this._activeBuffs.reduce((sum, b) => sum + b.value, 0);
+  }
 
   // =============================================
   // DATA ACCESS
@@ -639,8 +854,11 @@ export class HeroManager {
         stars,
         effectiveStats:   owned?.effectiveStats ?? cfg.stats,
         assignment,
-        isInSquad:        assignment.type === 'squad',
-        isInBuilding:     assignment.type === 'building',
+        isInSquad:        assignment.type === 'building' && !!assignment.buildingId?.startsWith('barracks_'),
+        isInBuilding:     assignment.type === 'building' && !assignment.buildingId?.startsWith('barracks_'),
+        assignedSquadId:  (assignment.type === 'building' && assignment.buildingId?.startsWith('barracks_'))
+          ? `squad_${parseInt(assignment.buildingId.replace('barracks_', ''), 10) + 1}`
+          : null,
         assignedBuilding: assignment.buildingId ?? null,
         specificCardQty,
         universalCardId,
@@ -664,7 +882,16 @@ export class HeroManager {
 
   isOwned(heroId) { return this._owned.has(heroId); }
 
-  update(_dt) {}
+  update(_dt) {
+    // Detect buff expiry and notify listeners
+    const now = Date.now();
+    const before = this._activeBuffs.length;
+    this._activeBuffs = this._activeBuffs.filter(b => b.endsAt > now);
+    if (this._activeBuffs.length !== before) {
+      eventBus.emit('buffs:updated', this.getActiveBuffsWithRemaining());
+      eventBus.emit('buffs:changed');
+    }
+  }
 
   // =============================================
   // PERSISTENCE
@@ -688,14 +915,22 @@ export class HeroManager {
       // Migrate old saves: isActive boolean → assignment object
       let assignment = state.assignment ?? { type: 'none' };
       if (state.isActive === true && assignment.type === 'none') {
-        assignment = { type: 'squad' };
+        // Legacy: was in global squad — clear it; user will reassign to a specific squad
+        assignment = { type: 'none' };
+      }
+      // Migrate old saves: squad assignment → building assignment (barracks_0)
+      if (assignment.type === 'squad') {
+        const squadId = assignment.squadId;
+        // Map squad_1 → barracks_0, squad_2 → barracks_1, etc.
+        const squadNum = parseInt(squadId?.replace('squad_', '') ?? '1', 10);
+        assignment = { type: 'building', buildingId: `barracks_${Math.max(0, squadNum - 1)}` };
       }
 
       const hero = {
         heroId:     id,
         level:      state.level    ?? 1,
-        xp:         state.xp       ?? 0,
-        xpToNext:   state.xpToNext ?? cfg.xpPerLevel ?? 500,
+        xp:         isFinite(state.xp)       ? state.xp       : 0,
+        xpToNext:   isFinite(state.xpToNext) ? state.xpToNext : (cfg.xpPerLevel ?? 500),
         stars:      state.stars    ?? 0,
         effectiveStats: state.effectiveStats ?? { ...cfg.stats },
         assignment,

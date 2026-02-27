@@ -4,12 +4,14 @@
  */
 
 export const RES_META = {
-  gold:  { icon: '💰', label: 'Gold'  },
-  wood:  { icon: '🪵', label: 'Wood'  },
-  stone: { icon: '🪨', label: 'Stone' },
-  food:  { icon: '🌾', label: 'Food'  },
-  mana:  { icon: '💎', label: 'Mana'  },
-  xp:    { icon: '✨', label: 'XP'    },
+  wood:    { icon: '🪵', label: 'Wood'    },
+  stone:   { icon: '🪨', label: 'Stone'   },
+  iron:    { icon: '⚙️', label: 'Iron'    },
+  food:    { icon: '🌾', label: 'Food'    },
+  water:   { icon: '💧', label: 'Water'   },
+  diamond: { icon: '💎', label: 'Diamond' },
+  money:   { icon: '🪙', label: 'Money'   },
+  xp:      { icon: '✨', label: 'XP'      },
 };
 
 /**

@@ -6,11 +6,14 @@
 import { eventBus } from '../core/EventBus.js';
 
 const DEFAULT_RESOURCES = {
-  gold:  { amount: 500, perSec: 0, cap: 5000 },
-  wood:  { amount: 300, perSec: 0, cap: 5000 },
-  stone: { amount: 200, perSec: 0, cap: 5000 },
-  food:  { amount: 100, perSec: 0, cap: 1000 },
-  mana:  { amount: 0,   perSec: 0, cap: 500  },
+  wood:    { amount: 300, perSec: 0, cap: 5000  },
+  stone:   { amount: 200, perSec: 0, cap: 5000  },
+  iron:    { amount: 0,   perSec: 0, cap: 2000  },
+  food:    { amount: 100, perSec: 0, cap: 1000  },
+  water:   { amount: 200, perSec: 0, cap: 2000  },
+  diamond: { amount: 20,  perSec: 0, cap: Infinity },
+
+  money:   { amount: 0,   perSec: 0, cap: 50000 },
 };
 
 export class ResourceManager {
@@ -19,7 +22,37 @@ export class ResourceManager {
     this._resources = JSON.parse(JSON.stringify(DEFAULT_RESOURCES));
     this._uiDirty = true;
     this._techBonuses = {};
+    this._heroManager = null;
+    this._buildingManager = null;
+    this._lastActiveBuildings = [];
+    /** Population is a pseudo-resource — not spent/earned like others. */
+    this._population = { current: 0, cap: 0 };
     eventBus.on('resources:bonusChanged', b => { this._techBonuses = b || {}; });
+  }
+
+  /**
+   * Wire BuildingManager after construction (for HQ-level benefits).
+   * @param {import('../systems/BuildingManager.js').BuildingManager} bm
+   */
+  setBuildingManager(bm) {
+    this._buildingManager = bm;
+  }
+
+  /**
+   * Wire HeroManager after construction (avoids circular dependency).
+   * @param {import('../systems/HeroManager.js').HeroManager} hm
+   */
+  setHeroManager(hm) {
+    this._heroManager = hm;
+    eventBus.on('buffs:changed',                () => this._reapplyRates());
+    eventBus.on('hero:productionBonusChanged',   () => this._reapplyRates());
+  }
+
+  /** Re-run recalculateRates with the cached building list. */
+  _reapplyRates() {
+    if (this._lastActiveBuildings.length > 0) {
+      this.recalculateRates(this._lastActiveBuildings);
+    }
   }
 
   // =============================================
@@ -32,7 +65,7 @@ export class ResourceManager {
       if (res.perSec === 0) continue;
       const gained = res.perSec * dt;
       const before = res.amount;
-      res.amount = Math.min(res.amount + gained, res.cap);
+      res.amount = res.cap === Infinity ? res.amount + gained : Math.min(res.amount + gained, res.cap);
       if (res.amount !== before) changed = true;
     }
     if (changed) {
@@ -50,11 +83,12 @@ export class ResourceManager {
    * @param {Array<{effects: object, level: number}>} activeBuildings
    */
   recalculateRates(activeBuildings) {
+    this._lastActiveBuildings = activeBuildings ?? this._lastActiveBuildings;
     // Reset rates
     for (const key of Object.keys(this._resources)) {
       this._resources[key].perSec = 0;
     }
-    for (const b of activeBuildings) {
+    for (const b of this._lastActiveBuildings) {
       if (!b.effects) continue;
       for (const [res, ratePerLevel] of Object.entries(b.effects)) {
         if (this._resources[res] !== undefined) {
@@ -64,10 +98,38 @@ export class ResourceManager {
     }
 
     // Apply tech multipliers
-    if (this._techBonuses.goldBonus)  this._resources.gold.perSec  *= (1 + this._techBonuses.goldBonus);
+    if (this._techBonuses.ironBonus)  this._resources.iron.perSec  *= (1 + this._techBonuses.ironBonus);
     if (this._techBonuses.woodBonus)  this._resources.wood.perSec  *= (1 + this._techBonuses.woodBonus);
     if (this._techBonuses.stoneBonus) this._resources.stone.perSec *= (1 + this._techBonuses.stoneBonus);
-    if (this._techBonuses.manaBonus)  this._resources.mana.perSec  *= (1 + this._techBonuses.manaBonus);
+    if (this._techBonuses.waterBonus) this._resources.water.perSec *= (1 + this._techBonuses.waterBonus);
+
+    // Apply HQ-level production bonus (all resources)
+    if (this._buildingManager) {
+      const hqBonus = this._buildingManager.getHQBenefits().productionBonus;
+      if (hqBonus > 0) {
+        for (const key of Object.keys(this._resources)) {
+          this._resources[key].perSec *= (1 + hqBonus);
+        }
+      }
+    }
+
+    // Apply building-stationed hero production bonuses (e.g. Shadowblade at Mine → +gold)
+    if (this._heroManager) {
+      const heroBuildingBonuses = this._heroManager.getBuildingProductionBonusMap();
+      for (const [res, bonus] of Object.entries(heroBuildingBonuses)) {
+        if (this._resources[res] !== undefined) {
+          this._resources[res].perSec *= (1 + bonus);
+        }
+      }
+
+      // Apply active production buff multiplier to ALL resource rates
+      const buffMult = this._heroManager.getActiveProductionMultiplier();
+      if (buffMult > 0) {
+        for (const key of Object.keys(this._resources)) {
+          this._resources[key].perSec *= (1 + buffMult);
+        }
+      }
+    }
 
     eventBus.emit('resources:ratesChanged', this.getSnapshot());
   }
@@ -123,10 +185,10 @@ export class ResourceManager {
   add(rewards) {
     for (const [key, amount] of Object.entries(rewards)) {
       if (this._resources[key] !== undefined) {
-        this._resources[key].amount = Math.min(
-          this._resources[key].amount + amount,
-          this._resources[key].cap
-        );
+        const cap = this._resources[key].cap;
+        this._resources[key].amount = cap === Infinity
+          ? this._resources[key].amount + amount
+          : Math.min(this._resources[key].amount + amount, cap);
       }
     }
     eventBus.emit('resources:added', rewards);
@@ -145,6 +207,37 @@ export class ResourceManager {
   }
 
   // =============================================
+  // POPULATION
+  // =============================================
+  getPopulation() { return { ...this._population }; }
+
+  setPopulationCap(cap) {
+    const clamped = Math.max(0, Math.min(cap, 1000));
+    if (this._population.cap === clamped) return;
+    this._population.cap = clamped;
+    // Shrink current pop if cap dropped below it
+    if (this._population.current > clamped) {
+      this._population.current = clamped;
+    }
+    eventBus.emit('population:updated', this.getPopulation());
+  }
+
+  growPopulation(amount) {
+    if (this._population.current >= this._population.cap) return;
+    this._population.current = Math.min(
+      this._population.current + amount,
+      this._population.cap
+    );
+    eventBus.emit('population:updated', this.getPopulation());
+  }
+
+  shrinkPopulation(amount) {
+    if (this._population.current <= 0) return;
+    this._population.current = Math.max(0, this._population.current - amount);
+    eventBus.emit('population:updated', this.getPopulation());
+  }
+
+  // =============================================
   // SERIALIZATION
   // =============================================
   getSnapshot() {
@@ -156,16 +249,22 @@ export class ResourceManager {
   }
 
   serialize() {
-    return this.getSnapshot();
+    return { resources: this.getSnapshot(), population: { ...this._population } };
   }
 
   deserialize(data) {
     if (!data) return;
-    for (const [key, res] of Object.entries(data)) {
+    // Support both old flat format (direct resource keys) and new format ({ resources, population })
+    const resourceData = data.resources ?? data;
+    for (const [key, res] of Object.entries(resourceData)) {
       if (this._resources[key]) {
         this._resources[key].amount = res.amount ?? 0;
-        this._resources[key].cap    = res.cap    ?? DEFAULT_RESOURCES[key].cap;
+        this._resources[key].cap    = res.cap    ?? DEFAULT_RESOURCES[key]?.cap ?? 0;
       }
+    }
+    if (data.population) {
+      this._population.current = data.population.current ?? 0;
+      this._population.cap     = data.population.cap     ?? 0;
     }
   }
 }

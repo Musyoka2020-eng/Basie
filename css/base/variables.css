@@ -28,11 +28,15 @@
   --clr-gold-muted:    hsl(43, 60%, 28%);
 
   /* Resource colors */
-  --clr-res-gold:      hsl(43, 90%, 55%);
   --clr-res-wood:      hsl(28, 70%, 52%);
   --clr-res-stone:     hsl(210, 15%, 65%);
   --clr-res-food:      hsl(140, 60%, 48%);
-  --clr-res-mana:      hsl(270, 70%, 62%);
+  --clr-res-iron:      hsl(0, 0%, 62%);
+  --clr-res-water:     hsl(205, 75%, 55%);
+  --clr-res-money:     hsl(43, 90%, 55%);
+  --clr-res-diamond:   hsl(190, 85%, 65%);
+  --clr-res-cafeteria: hsl(35, 85%, 58%);
+  --clr-res-mana:      hsl(270, 70%, 62%); /* kept for compatibility */
 
   /* Semantic colors */
   --clr-success:       hsl(140, 60%, 48%);

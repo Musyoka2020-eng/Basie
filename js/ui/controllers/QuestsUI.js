@@ -102,17 +102,18 @@ export class QuestsUI {
     const logList = document.createElement('div');
     logList.className = 'chapter-log-list';
 
-    [...log].reverse().forEach(chapter => {
+    [...log].reverse().forEach(entry => {
+      const ch = entry.chapter ?? entry;
       const card = document.createElement('div');
       card.className = 'chapter-log-card';
-      const preview = Array.isArray(chapter.dialogue)
-        ? chapter.dialogue.slice(0, 2).map(d => d.text ?? d).join(' · ')
+      const preview = Array.isArray(ch.dialogue)
+        ? ch.dialogue.slice(0, 2).map(d => d.text ?? d).join(' · ')
         : '';
       card.innerHTML = `
-        <div class="chapter-log-icon">${chapter.icon ?? '📖'}</div>
+        <div class="chapter-log-icon">${ch.icon ?? '📖'}</div>
         <div class="chapter-log-meta">
-          <div class="chapter-log-arc">${chapter.arc ?? ''}</div>
-          <div class="chapter-log-title">${chapter.title ?? chapter.id}</div>
+          <div class="chapter-log-arc">${ch.arc ?? ''}</div>
+          <div class="chapter-log-title">${ch.title ?? ch.id}</div>
           ${preview ? `<p class="chapter-log-dialogue">${preview}</p>` : ''}
         </div>`;
       logList.appendChild(card);

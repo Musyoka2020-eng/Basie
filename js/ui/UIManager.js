@@ -30,6 +30,7 @@ import { SettingsUI }   from './controllers/SettingsUI.js';
 import { InventoryUI }  from './controllers/InventoryUI.js';
 import { ShopUI }       from './controllers/ShopUI.js';
 import { GachaUI }      from './controllers/GachaUI.js';
+import { MilitaryUI }   from './controllers/MilitaryUI.js';
 import { RES_META }     from './uiUtils.js';
 import { eventBus }     from '../core/EventBus.js';
 
@@ -41,17 +42,20 @@ export class UIManager {
 
     // Instantiate each controller with only its required systems
     this._navigation = new NavigationUI({
-      rm:   systems.rm,
-      bm:   systems.bm,
-      um:   systems.um,
-      tech: systems.tech,
-      user: systems.user,
-      mail: systems.mail,
+      rm:            systems.rm,
+      bm:            systems.bm,
+      um:            systems.um,
+      tech:          systems.tech,
+      user:          systems.user,
+      mail:          systems.mail,
+      heroes:        systems.heroes,
+      notifications: systems.notifications,
     });
 
     this._buildings = new BuildingsUI({
       rm:            systems.rm,
       bm:            systems.bm,
+      inventory:     systems.inventory,
       notifications: systems.notifications,
       heroes:        systems.heroes,
     });
@@ -59,11 +63,23 @@ export class UIManager {
     this._barracks = new BarracksUI({
       rm:            systems.rm,
       um:            systems.um,
+      inventory:     systems.inventory,
+      heroes:        systems.heroes,
       notifications: systems.notifications,
+    });
+
+    this._military = new MilitaryUI({
+      rm:            systems.rm,
+      um:            systems.um,
+      bm:            systems.bm,
+      inventory:     systems.inventory,
+      notifications: systems.notifications,
+      tech:          systems.tech,
     });
 
     this._heroes = new HeroesUI({
       rm:            systems.rm,
+      um:            systems.um,
       heroes:        systems.heroes,
       inventory:     systems.inventory,
       notifications: systems.notifications,
@@ -77,6 +93,7 @@ export class UIManager {
 
     this._shop = new ShopUI({
       rm:            systems.rm,
+      bm:            systems.bm,
       inventory:     systems.inventory,
       notifications: systems.notifications,
     });
@@ -97,6 +114,7 @@ export class UIManager {
     this._research = new ResearchUI({
       rm:            systems.rm,
       tech:          systems.tech,
+      inventory:     systems.inventory,
       achievements:  systems.achievements,
       notifications: systems.notifications,
     });
@@ -133,6 +151,7 @@ export class UIManager {
     this._navigation.init();
     this._buildings.init();
     this._barracks.init();
+    this._military.init();
     this._heroes.init();
     this._inventory.init();
     this._combat.init();

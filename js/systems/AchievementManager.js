@@ -69,6 +69,7 @@ export class AchievementManager {
     const hasMailReward = Object.keys(mailRewards).length > 0;
 
     this._mail.send({
+      type: 'achievement',
       subject: `🏆 Achievement Unlocked: ${cfg.name}`,
       body: cfg.description,
       icon: cfg.icon,

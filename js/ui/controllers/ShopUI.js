@@ -66,17 +66,18 @@ export class ShopUI {
     if (!cat) return;
 
     const snap = this._s.rm.getSnapshot();
-    const gold  = snap.gold?.amount ?? 0;
+    const money   = snap.money?.amount ?? 0;
+    const diamond = snap.diamond?.amount ?? 0;
 
     grid.innerHTML = '';
 
     for (const shopEntry of cat.items) {
-      const card = this._buildItemCard(shopEntry, gold);
+      const card = this._buildItemCard(shopEntry, money, diamond);
       grid.appendChild(card);
     }
   }
 
-  _buildItemCard(entry, gold) {
+  _buildItemCard(entry, money, diamond) {
     const comingSoon = entry.comingSoon === true;
 
     // Resolve item config (may be null for premium stubs)
@@ -85,9 +86,26 @@ export class ShopUI {
     const name   = cfg?.name   ?? entry.label  ?? 'Unknown';
     const desc   = cfg?.description ?? entry.description ?? '';
     const rarity = cfg?.rarity ?? null;
-    const cost   = entry.goldCost;
-    const qty    = entry.itemId ? this._s.inventory.getQuantity(entry.itemId) : 0;
-    const canAfford = typeof cost === 'number' && gold >= cost;
+    
+    // Determine which currency and cost
+    let cost, currency, currencyIcon;
+    if (typeof entry.moneyCost === 'number') {
+      cost = entry.moneyCost;
+      currency = 'money';
+      currencyIcon = '🪙';
+    } else if (typeof entry.diamondCost === 'number') {
+      cost = entry.diamondCost;
+      currency = 'diamond';
+      currencyIcon = '💎';
+    } else {
+      cost = null;
+    }
+    
+    const cfg2      = entry.itemId ? INVENTORY_ITEMS[entry.itemId] : null;
+    const automations = this._s.bm?.getAutomations() ?? {};
+    const isAutomationActive = cfg2?.type === 'automation' && automations[cfg2.automation] === true;
+    const qty       = entry.itemId ? this._s.inventory.getQuantity(entry.itemId) : 0;
+    const canAfford = !isAutomationActive && cost !== null && (currency === 'money' ? money >= cost : diamond >= cost);
 
     const rarityBadge = rarity
       ? `<span class="shop-rarity-badge" style="color:${RARITY_META[rarity]?.color ?? 'inherit'}">${RARITY_META[rarity]?.label ?? rarity}</span>`
@@ -103,8 +121,8 @@ export class ShopUI {
           ? `<span class="shop-owned-badge" data-item-qty="${entry.itemId}" style="display:none"></span>`
           : '');
 
-    const costHtml = typeof cost === 'number'
-      ? `<span class="shop-cost-chip ${canAfford ? 'affordable' : 'unaffordable'}" data-item-cost="${entry.itemId ?? ''}">💰 ${fmt(cost)}</span>`
+    const costHtml = cost !== null
+      ? `<span class="shop-cost-chip ${canAfford ? 'affordable' : 'unaffordable'}" data-item-cost="${entry.itemId ?? ''}" data-currency="${currency}">${currencyIcon} ${fmt(cost)}</span>`
       : '';
 
     const card = document.createElement('div');
@@ -122,7 +140,9 @@ export class ShopUI {
         ${costHtml}
         ${comingSoon
           ? `<button class="btn btn-sm btn-ghost" disabled>🔒 Coming Soon</button>`
-          : `<button class="btn btn-sm ${canAfford ? 'btn-gold' : 'btn-ghost'} shop-buy-btn"
+          : isAutomationActive
+            ? `<button class="btn btn-sm btn-ghost" disabled>✅ Active</button>`
+            : `<button class="btn btn-sm ${canAfford ? 'btn-gold' : 'btn-ghost'} shop-buy-btn"
                data-item="${entry.itemId}" data-cost="${cost}"
                ${canAfford ? '' : 'disabled'}>
                Buy
@@ -140,21 +160,52 @@ export class ShopUI {
   }
 
   _buy(entry) {
-    const cost = entry.goldCost;
-    const snap = this._s.rm.getSnapshot();
-    const currentGold = snap.gold?.amount ?? 0;
-
-    if (typeof cost !== 'number' || currentGold < cost) {
+    // Determine which currency the item uses
+    const moneyCost = entry.moneyCost;
+    const diamondCost = entry.diamondCost;
+    
+    let costObj, currency, currencyIcon, costAmount;
+    
+    if (typeof moneyCost === 'number') {
+      costAmount = moneyCost;
+      costObj = { money: moneyCost };
+      currency = 'money';
+      currencyIcon = '🪙';
+    } else if (typeof diamondCost === 'number') {
+      costAmount = diamondCost;
+      costObj = { diamond: diamondCost };
+      currency = 'diamond';
+      currencyIcon = '💎';
+    } else {
       eventBus.emit('ui:error');
-      this._s.notifications?.show('warning', 'Cannot Buy', `Not enough gold. Need ${fmt(cost)} 💰.`);
+      this._s.notifications?.show('warning', 'Cannot Buy', 'Invalid item cost configuration.');
       return;
     }
 
-    this._s.rm.add({ gold: -cost });
-    this._s.inventory.addItem(entry.itemId, 1);
+    // Check affordability using ResourceManager's atomic check
+    if (!this._s.rm.canAfford(costObj)) {
+      eventBus.emit('ui:error');
+      this._s.notifications?.show('warning', 'Cannot Buy', `Not enough ${currency}. Need ${fmt(costAmount)} ${currencyIcon}.`);
+      return;
+    }
 
+    // Deduct cost atomically
+    this._s.rm.spend(costObj);
+
+    // Handle special automation items
     const cfg = INVENTORY_ITEMS[entry.itemId];
-    this._s.notifications?.show('success', '🛒 Purchased!', `${cfg?.name ?? entry.itemId} added to your inventory.`);
+    if (cfg?.type === 'automation') {
+      eventBus.emit('automation:purchased', { automation: cfg.automation });
+      this._s.notifications?.show('success', '🤖 Automation Enabled!', `${cfg?.name ?? entry.itemId} is now active.`);
+    } else {
+      // Normal items go to inventory
+      this._s.inventory.addItem(entry.itemId, 1);
+      this._s.notifications?.show('success', '🛒 Purchased!', `${cfg?.name ?? entry.itemId} added to your inventory.`);
+    }
+
+    // Emit event for save trigger
+    eventBus.emit('game:purchaseComplete', { itemId: entry.itemId, cost: costObj });
+    
     this.render();
   }
 
@@ -169,31 +220,51 @@ export class ShopUI {
     });
   }
 
-  // Refresh buy button disabled state and cost chip class on gold change
+  // Refresh buy button disabled state and cost chip class on resource change
   _refreshAffordability() {
     const snap = this._s.rm.getSnapshot();
-    const gold = snap.gold?.amount ?? 0;
+    const money   = snap.money?.amount ?? 0;
+    const diamond = snap.diamond?.amount ?? 0;
 
     const cat = SHOP_CONFIG.find(c => c.id === this._activeCategory);
     if (!cat) return;
 
-    const goldByItemId = Object.fromEntries(cat.items.map(e => [e.itemId, e.goldCost]));
+    // Build currency maps
+    const costsByItemId = Object.fromEntries(
+      cat.items.map(e => {
+        if (typeof e.moneyCost === 'number') return [e.itemId, { amount: e.moneyCost, currency: 'money' }];
+        if (typeof e.diamondCost === 'number') return [e.itemId, { amount: e.diamondCost, currency: 'diamond' }];
+        return [e.itemId, null];
+      })
+    );
 
     document.querySelectorAll('.shop-buy-btn').forEach(btn => {
       const itemId = btn.dataset.item;
-      const cost   = Number(btn.dataset.cost);
-      if (!itemId || isNaN(cost)) return;
-      const canAfford = gold >= cost;
+      if (!itemId) return;
+      const costInfo = costsByItemId[itemId];
+      if (!costInfo) return;
+      
+      const canAfford = costInfo.currency === 'money' 
+        ? money >= costInfo.amount 
+        : diamond >= costInfo.amount;
+      
       btn.disabled = !canAfford;
       btn.className = `btn btn-sm ${canAfford ? 'btn-gold' : 'btn-ghost'} shop-buy-btn`;
     });
 
     document.querySelectorAll('.shop-cost-chip').forEach(chip => {
       const itemId = chip.dataset.itemCost;
-      if (!itemId) return;
-      const cost = goldByItemId[itemId];
-      if (typeof cost !== 'number') return;
-      chip.className = `shop-cost-chip ${gold >= cost ? 'affordable' : 'unaffordable'}`;
+      const currency = chip.dataset.currency;
+      if (!itemId || !currency) return;
+      
+      const costInfo = costsByItemId[itemId];
+      if (!costInfo) return;
+      
+      const canAfford = currency === 'money' 
+        ? money >= costInfo.amount 
+        : diamond >= costInfo.amount;
+        
+      chip.className = `shop-cost-chip ${canAfford ? 'affordable' : 'unaffordable'}`;
     });
   }
 }

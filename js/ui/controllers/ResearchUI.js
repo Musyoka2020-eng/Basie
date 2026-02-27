@@ -9,7 +9,7 @@
  */
 import { eventBus }      from '../../core/EventBus.js';
 import { RES_META, fmt } from '../uiUtils.js';
-import { BUILDINGS_CONFIG } from '../../entities/GAME_DATA.js';
+import { BUILDINGS_CONFIG, INVENTORY_ITEMS } from '../../entities/GAME_DATA.js';
 
 const TIER_COLORS = { 1: 'var(--clr-success)', 2: 'var(--clr-gold)', 3: 'var(--clr-danger)' };
 const TIER_LABELS = { 1: 'Tier 1 — Basic',     2: 'Tier 2 — Advanced', 3: 'Tier 3 — Elite' };
@@ -96,9 +96,12 @@ export class ResearchUI {
             </div>
             <button class="btn btn-xs btn-ghost slot-cancel-btn" data-techid="${queueItem.techId}" title="Cancel &amp; refund">✕</button>
           </div>
-          <div class="progress-container" data-timer-start="${startedAt}" data-timer-end="${endsAt}">
-            <div class="progress-label"><span>Researching…</span><span class="progress-time-label">${secsLeft}s</span></div>
-            <div class="progress-bar"><div class="progress-fill progress-fill-xp" style="width:${pct}%"></div></div>
+          <div class="slot-speedup-row">
+            <div class="progress-container" data-timer-start="${startedAt}" data-timer-end="${endsAt}">
+              <div class="progress-label"><span>Researching…</span><span class="progress-time-label">${secsLeft}s</span></div>
+              <div class="progress-bar"><div class="progress-fill progress-fill-xp" style="width:${pct}%"></div></div>
+            </div>
+            <button class="btn btn-xs btn-warning slot-speed-btn" title="Speed Up">⏩</button>
           </div>`;
 
       } else if (queueItem) {
@@ -125,6 +128,14 @@ export class ResearchUI {
         const tid = e.currentTarget.dataset.techid;
         const r   = this._s.tech.cancelResearch(tid);
         if (!r.success) this._s.notifications?.show('warning', 'Cannot Cancel', r.reason);
+      });
+
+      slotEl.querySelector('.slot-speed-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        eventBus.emit('ui:click');
+        const activeQ = queue.find(q => q.isActive);
+        const remaining = activeQ?.researchEndsAt ? Math.max(0, Math.ceil((activeQ.researchEndsAt - Date.now()) / 1000)) : 0;
+        this._openSpeedupPicker(slotEl, 'research', remaining);
       });
 
       slotsRow.appendChild(slotEl);
@@ -304,5 +315,77 @@ export class ResearchUI {
         ? `+${Math.round(total * 100)}% ${label}`
         : `+${total} ${label}`;
     }).join(', ');
+  }
+
+  // ─────────────────────────────────────────────
+  // Speed-Up Picker
+  // ─────────────────────────────────────────────
+
+  _openSpeedupPicker(anchorEl, queueType, secsLeft) {
+    document.querySelector('.speedup-picker')?.remove();
+
+    const inventory = this._s.inventory;
+    if (!inventory) return;
+
+    const owned = inventory.getOwnedItems().filter(i =>
+      i.type === 'speed_boost' && (i.target === queueType || i.target === 'any')
+    );
+
+    const picker = document.createElement('div');
+    picker.className = 'speedup-picker';
+
+    if (owned.length === 0) {
+      picker.innerHTML = `
+        <div class="speedup-picker-empty">
+          <span>No speedups available.</span>
+          <button class="btn btn-xs btn-primary speedup-goto-shop">🛒 Buy from Shop</button>
+        </div>`;
+      picker.querySelector('.speedup-goto-shop')?.addEventListener('click', () => {
+        picker.remove();
+        eventBus.emit('ui:navigateTo', 'shop');
+      });
+    } else {
+      const sorted = [...owned].sort((a, b) => a.skipSeconds - b.skipSeconds);
+      const recommended = sorted.find(i => i.skipSeconds >= secsLeft) ?? sorted[sorted.length - 1];
+
+      picker.innerHTML = `
+        <div class="speedup-picker-title">⏩ Speed Up</div>
+        ${sorted.map(item => {
+          const isRec = item.id === recommended.id;
+          const label = item.skipSeconds >= 999999 ? 'Instant'
+            : item.skipSeconds >= 3600 ? `${Math.round(item.skipSeconds / 3600)}h`
+            : `${Math.round(item.skipSeconds / 60)}m`;
+          const typeTag = item.target === 'any' ? ' (Universal)' : '';
+          return `
+            <button class="speedup-option${isRec ? ' speedup-recommended' : ''}" data-item="${item.id}">
+              <span class="speedup-option-icon">${item.icon}</span>
+              <span class="speedup-option-label">${label}${typeTag}</span>
+              <span class="speedup-option-qty">×${item.quantity}</span>
+              ${isRec ? '<span class="speedup-rec-badge">⭐ Best</span>' : ''}
+            </button>`;
+        }).join('')}`;
+
+      picker.querySelectorAll('.speedup-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const itemId = btn.dataset.item;
+          const r = inventory.useItem(itemId, { queueType });
+          picker.remove();
+          if (!r.success) {
+            this._s.notifications?.show('warning', 'Cannot Speed Up', r.reason);
+          } else {
+            const remaining = r.completed ? 'Done!' : `${Math.ceil((r.remaining ?? 0) / 1000)}s left`;
+            this._s.notifications?.show('success', '⏩ Sped Up!', remaining);
+          }
+        });
+      });
+    }
+
+    const closeHandler = (e) => {
+      if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('pointerdown', closeHandler, true); }
+    };
+    setTimeout(() => document.addEventListener('pointerdown', closeHandler, true), 0);
+
+    anchorEl.style.position = 'relative';
+    anchorEl.appendChild(picker);
   }
 }

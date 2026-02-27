@@ -40,13 +40,19 @@ const buildingManager  = new BuildingManager(resourceManager);
 const inventoryManager = new InventoryManager();
 const heroManager      = new HeroManager(resourceManager, buildingManager, inventoryManager);
 buildingManager.setHeroManager(heroManager);
+resourceManager.setBuildingManager(buildingManager);
 inventoryManager.setHeroManager(heroManager);
 inventoryManager.setResourceManager(resourceManager);
 const unitManager      = new UnitManager(resourceManager, buildingManager);
 const combatManager    = new CombatManager(unitManager, userManager, resourceManager, heroManager, buildingManager);
+resourceManager.setHeroManager(heroManager);
 const mailManager      = new MailManager();
 const questManager     = new QuestManager(resourceManager, userManager);
 const techManager      = new TechnologyManager(resourceManager, buildingManager);
+inventoryManager.setBuildingManager(buildingManager);
+inventoryManager.setUnitManager(unitManager);
+inventoryManager.setTechnologyManager(techManager);
+unitManager.setTechnologyManager(techManager);
 const settingsManager  = new SettingsManager(saveManager);
 const marketManager    = new MarketManager(resourceManager);
 const achievementManager = new AchievementManager(userManager, mailManager);
@@ -65,6 +71,8 @@ engine.registerSystem(combatManager);
 engine.registerSystem(techManager);
 engine.registerSystem(questManager);
 engine.registerSystem(mailManager);
+engine.registerSystem(heroManager);
+engine.registerSystem(marketManager);
 
 // =============================================
 // SERIALIZATION
@@ -141,16 +149,29 @@ function initAuthScreen() {
     launchGame(authScreen, gameShell);
   });
 
+  // Firebase is not configured — hide login/register tabs and form fields,
+  // show a clear "playing as guest" banner instead.
+  const authForm   = document.getElementById('auth-form');
+  const authTabs   = document.querySelector('.auth-tabs');
+  const formInputs = authForm?.querySelectorAll('.form-group, #auth-submit');
+  formInputs?.forEach(el => el.style.display = 'none');
+  if (authTabs) authTabs.style.display = 'none';
+  if (regFields) regFields.classList.add('hidden');
+
+  // Add guest-mode info banner above the guest button
+  const guestBanner = document.createElement('div');
+  guestBanner.className = 'auth-guest-banner';
+  guestBanner.innerHTML = `
+    <p style="text-align:center;color:var(--clr-text-muted);margin:1rem 0 0.5rem;">
+      🎮 <strong>Playing as Guest</strong> — progress saved locally on this device.
+    </p>`;
+  guestBtn.parentElement?.insertBefore(guestBanner, guestBtn);
+
   document.getElementById('auth-form')?.addEventListener('submit', e => {
     e.preventDefault();
-    authError.classList.add('hidden');
-    const email    = document.getElementById('auth-email').value.trim();
-    const password = document.getElementById('auth-password').value;
-    const username = document.getElementById('auth-username')?.value.trim();
-    if (!email || !password) { authError.textContent = 'Please fill in all fields.'; authError.classList.remove('hidden'); return; }
-    if (password.length < 6) { authError.textContent = 'Password must be at least 6 characters.'; authError.classList.remove('hidden'); return; }
-    if (!isLoginMode && !username) { authError.textContent = 'Please enter a commander name.'; authError.classList.remove('hidden'); return; }
-    if (!isLoginMode) userManager.setUsername(username);
+    // Firebase not configured — fall through to guest mode
+    userManager.setGuest(true);
+    userManager.setUsername('Guest Commander');
     launchGame(authScreen, gameShell);
   });
 }
@@ -194,8 +215,21 @@ function launchGame(authScreen, gameShell) {
     notificationManager.show('success', `🏆 Achievement: ${d.name}`, d.description);
   });
 
-  // Offline progress
+  // Offline progress — capture events during fast simulation
+  const offlineEvents = [];
+  const offlineListeners = [
+    ['building:completed', d => offlineEvents.push({ icon: '🏗️', text: `${d.building?.name ?? d.id} upgraded to Lv ${d.building?.level ?? '?'}` })],
+    ['unit:trained',       d => offlineEvents.push({ icon: '🪖', text: `${d.count ?? 1}× ${d.name ?? d.unitId} trained` })],
+    ['tech:researched',    d => offlineEvents.push({ icon: '🔬', text: `${d.name ?? d.id} researched (Lv ${d.level ?? '?'})` })],
+    ['quest:completed',    d => offlineEvents.push({ icon: '📜', text: `Quest "${d.name ?? d.questId}" completed` })],
+  ];
+  offlineListeners.forEach(([evt, fn]) => eventBus.on(evt, fn));
+
   const offlineMs = engine.calculateOfflineProgress(lastTimestamp);
+
+  // Remove temporary listeners
+  offlineListeners.forEach(([evt, fn]) => eventBus.off(evt, fn));
+
   if (offlineMs > 5000) {
     const mins = Math.floor(offlineMs / 60000);
     const snap  = resourceManager.getSnapshot();
@@ -206,7 +240,16 @@ function launchGame(authScreen, gameShell) {
         return `<div class="offline-reward-row"><span>${k}</span><span style="color:var(--clr-success);font-family:var(--font-mono)">+${gained.toLocaleString()}</span></div>`;
       }).join('');
 
-    if (gainSummary) {
+    const eventSummary = offlineEvents.length > 0
+      ? `<div class="modal-section">
+           <div class="modal-section-title">Completed While Away</div>
+           <div class="offline-rewards">${offlineEvents.map(e =>
+             `<div class="offline-reward-row"><span>${e.icon} ${e.text}</span></div>`
+           ).join('')}</div>
+         </div>`
+      : '';
+
+    if (gainSummary || eventSummary) {
       setTimeout(() => {
         const overlay = document.getElementById('modal-overlay');
         const content = document.getElementById('modal-content');
@@ -219,10 +262,11 @@ function launchGame(authScreen, gameShell) {
                 <div class="modal-subtitle">Away for ${mins} minute${mins !== 1 ? 's' : ''}</div>
               </div>
             </div>
-            <div class="modal-section">
+            ${gainSummary ? `<div class="modal-section">
               <div class="modal-section-title">Resources Collected While Away</div>
               <div class="offline-rewards">${gainSummary}</div>
-            </div>
+            </div>` : ''}
+            ${eventSummary}
             <div class="modal-actions">
               <button class="btn btn-primary" id="btn-offline-close">Collect & Continue</button>
             </div>
@@ -237,6 +281,7 @@ function launchGame(authScreen, gameShell) {
   if (!savedState) {
     setTimeout(() => {
       mailManager.send({
+        type: 'system',
         subject: '⚔️ Welcome to Basie, Commander!',
         body: 'Your realm awaits! Build structures to generate resources, train soldiers in the Barracks, and recruit legendary Heroes. Study the Research tree for long-term advantages. Good luck, Commander!',
         icon: '👑',
@@ -250,6 +295,19 @@ function launchGame(authScreen, gameShell) {
   }
 
   saveManager.startAutosave(getGameState);
+
+  // Save immediately whenever the build queue changes so items aren't lost on refresh
+  eventBus.on('building:queueUpdated', () => saveManager.save(getGameState()));
+  // Trigger save immediately after any shop purchase
+  eventBus.on('game:purchaseComplete', () => saveManager.save(getGameState()));
+  
+  // Wire automation purchases to BuildingManager
+  eventBus.on('automation:purchased', (data) => {
+    if (data.automation === 'cafeteriaRestock') {
+      buildingManager.enableAutomation('cafeteriaRestock');
+    }
+  });
+  
   window.addEventListener('beforeunload', () => saveManager.save(getGameState()));
 
   new TimerService().init();

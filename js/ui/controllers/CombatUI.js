@@ -133,9 +133,14 @@ export class CombatUI {
       : '';
 
     const squads     = this._s.um.getSquads();
-    const squadOpts  = squads.length === 0
-      ? '<option value="">No squads available</option>'
-      : squads.map(s => `<option value="${s.id}">${s.name} (${s.units.reduce((a, u) => a + u.count, 0)} units)</option>`).join('');
+    const firstSquad = squads.length > 0 ? squads[0] : null;
+    const squadDropdownTriggerText = firstSquad
+      ? `${firstSquad.name} (${firstSquad.units.reduce((a, u) => a + u.count, 0)} units)`
+      : 'No squads available';
+    const squadDropdownOptions = squads.map((s, i) => {
+      const unitCount = s.units.reduce((a, u) => a + u.count, 0);
+      return `<div class="squad-dropdown-option${i === 0 ? ' selected' : ''}" data-value="${s.id}">${s.name} <span class="squad-opt-units">(${unitCount} units)</span></div>`;
+    }).join('');
 
     area.innerHTML = `
       <div class="campaign-detail">
@@ -150,7 +155,14 @@ export class CombatUI {
           <div class="cost-row" style="margin-bottom:var(--space-3)">${rewardsHtml}</div>
           <div style="margin-bottom:var(--space-4);background:var(--clr-bg);padding:var(--space-3);border-radius:var(--radius-md);border:1px solid var(--clr-border)">
             <label style="display:block;font-size:var(--text-sm);font-weight:600;margin-bottom:var(--space-2)">Deploy Squad:</label>
-            <select id="squad-select" class="w-full" style="background:var(--clr-bg-elevated);color:var(--clr-text);border:1px solid var(--clr-border);border-radius:var(--radius-md);padding:8px 12px;font-size:var(--text-sm)">${squadOpts}</select>
+            <div class="squad-dropdown" id="squad-dropdown">
+              <button type="button" class="squad-dropdown-trigger" id="squad-select-trigger">
+                <span class="squad-select-label">${squadDropdownTriggerText}</span>
+                <span class="chevron">▼</span>
+              </button>
+              <div class="squad-dropdown-panel">${squadDropdownOptions}</div>
+              <input type="hidden" id="squad-select" value="${firstSquad?.id ?? ''}">
+            </div>
             <div id="readiness-badge-area" style="margin-top:var(--space-2)"></div>
           </div>
           <button class="btn btn-danger w-full" id="btn-campaign-attack" ${squads.length === 0 ? 'disabled' : ''}>
@@ -158,6 +170,34 @@ export class CombatUI {
           </button>
         </div>
       </div>`;
+
+    // Wire custom squad dropdown
+    const dropdown = document.getElementById('squad-dropdown');
+    const trigger  = document.getElementById('squad-select-trigger');
+    const hidden   = document.getElementById('squad-select');
+    if (dropdown && trigger) {
+      trigger.addEventListener('click', () => {
+        eventBus.emit('ui:click');
+        dropdown.classList.toggle('open');
+      });
+      dropdown.querySelectorAll('.squad-dropdown-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          eventBus.emit('ui:click');
+          const val = opt.dataset.value;
+          hidden.value = val;
+          trigger.querySelector('.squad-select-label').textContent = opt.textContent;
+          dropdown.querySelectorAll('.squad-dropdown-option').forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          dropdown.classList.remove('open');
+          updateReadiness(val);
+        });
+      });
+      // Close on outside click
+      const closeHandler = (e) => {
+        if (!dropdown.contains(e.target)) { dropdown.classList.remove('open'); }
+      };
+      document.addEventListener('click', closeHandler, { capture: true });
+    }
 
     // Helper: update readiness badge based on selected squad
     const updateReadiness = (squadId) => {
@@ -174,10 +214,6 @@ export class CombatUI {
     // Initial readiness check
     const initialSquad = document.getElementById('squad-select')?.value;
     if (canAttack && initialSquad) updateReadiness(initialSquad);
-
-    document.getElementById('squad-select')?.addEventListener('change', e => {
-      updateReadiness(e.target.value);
-    });
 
     document.getElementById('btn-campaign-attack')?.addEventListener('click', () => {
       eventBus.emit('ui:click');

@@ -77,8 +77,44 @@
 }
 
 /* Resource chip color variants */
-#res-gold:hover   { border-color: var(--clr-res-gold); }
-#res-wood:hover   { border-color: var(--clr-res-wood); }
-#res-stone:hover  { border-color: var(--clr-res-stone); }
-#res-food:hover   { border-color: var(--clr-res-food); }
-#res-mana:hover   { border-color: var(--clr-res-mana); }
+#res-wood:hover      { border-color: var(--clr-res-wood); }
+#res-stone:hover     { border-color: var(--clr-res-stone); }
+#res-food:hover      { border-color: var(--clr-res-food); }
+#res-iron:hover      { border-color: var(--clr-res-iron); }
+#res-water:hover     { border-color: var(--clr-res-water); }
+#res-money:hover     { border-color: var(--clr-res-money); }
+#res-diamond:hover   { border-color: var(--clr-res-diamond); }
+#res-cafeteria:hover { border-color: var(--clr-res-cafeteria); }
+
+/* =============================================
+ * RESPONSIVE BREAKPOINTS
+ * ============================================= */
+
+/* ≤1400px — tighten chips on cramped desktops */
+@media (max-width: 1400px) {
+  .resource-chip {
+    min-width: 110px;
+    padding: var(--space-1) var(--space-2);
+  }
+}
+
+/* ≤1100px — hide resource name, fixes Diamond truncation */
+@media (max-width: 1100px) {
+  .resource-chip {
+    min-width: 80px;
+  }
+  .res-name {
+    display: none;
+  }
+}
+
+/* ≤768px — icon + value only, minimal footprint */
+@media (max-width: 768px) {
+  .resource-chip {
+    min-width: 58px;
+    gap: var(--space-1);
+  }
+  .res-rate-col {
+    display: none;
+  }
+}

@@ -165,6 +165,51 @@
   line-height: 1.4;
 }
 
+/* HQ unlock preview on townhall card */
+.hq-preview {
+  margin-top: var(--space-3, 0.75rem);
+  padding: var(--space-3, 0.75rem);
+  border-radius: var(--radius-md, 6px);
+  background: rgba(270, 70, 62, 0.08);
+  border: 1px solid var(--clr-primary-muted, hsl(270, 40%, 30%));
+}
+
+.hq-preview-title {
+  font-size: var(--text-xs, 0.7rem);
+  font-weight: 700;
+  color: var(--clr-primary-light, hsl(270, 75%, 72%));
+  margin-bottom: var(--space-2, 0.5rem);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hq-preview-row {
+  font-size: var(--text-xs, 0.7rem);
+  color: var(--clr-text-secondary, hsl(225, 12%, 60%));
+  line-height: 1.6;
+}
+
+.hq-preview-row strong {
+  color: var(--clr-text-primary, hsl(225, 20%, 92%));
+}
+
+/* Current HQ benefits display */
+.hq-benefits {
+  margin-top: var(--space-2, 0.5rem);
+  padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(43, 90, 55, 0.06);
+  border: 1px solid var(--clr-gold-muted, hsl(43, 60%, 28%));
+  font-size: var(--text-xs, 0.7rem);
+  color: var(--clr-gold-light, hsl(43, 95%, 68%));
+  line-height: 1.6;
+}
+
+.hq-benefits-title {
+  font-weight: 700;
+  margin-right: var(--space-2, 0.5rem);
+}
+
 /* Unit card */
 .unit-card {
   padding: 0;
@@ -591,6 +636,13 @@
   border-color: rgba(255,255,255,0.22);
   color: var(--clr-text);
   font-weight: 600;
+}
+
+.bc-type-tab-locked {
+  opacity: 0.45;
+}
+.bc-type-lock {
+  font-size: 0.65rem;
 }
 
 .bc-type-icon { font-size: 1rem; }
@@ -1138,3 +1190,383 @@
   font-style: italic;
 }
 
+/* ==============================================
+ * HERO SPLIT LAYOUT — Roster + Detail Panel
+ * ============================================== */
+
+/* Top-level two-column layout */
+.heroes-split-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: var(--space-4);
+  min-height: 0;
+  flex: 1;
+}
+
+@media (max-width: 900px) {
+  .heroes-split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Left: Roster pane ────────────────────── */
+
+.heroes-roster-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+  padding-right: var(--space-1);
+}
+
+.heroes-section-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--clr-text-muted);
+  padding: var(--space-3) var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--clr-border);
+  margin-top: var(--space-2);
+}
+.heroes-section-label:first-child { margin-top: 0; }
+
+.heroes-section-label--recruit {
+  color: var(--clr-primary);
+  border-color: var(--clr-primary-muted);
+}
+
+/* ── Compact roster card ─────────────────── */
+
+.hero-roster-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--clr-border);
+  background: var(--clr-bg-elevated);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
+}
+
+.hero-roster-card:hover {
+  background: var(--clr-bg-hover);
+  border-color: var(--clr-border-light);
+}
+
+.hero-roster-card--common.hero-roster-card--selected,
+.hero-roster-card--common:hover {
+  border-color: var(--clr-tier-common);
+  box-shadow: 0 0 0 1px var(--clr-tier-common-muted);
+}
+.hero-roster-card--rare.hero-roster-card--selected,
+.hero-roster-card--rare:hover {
+  border-color: var(--clr-tier-rare);
+  box-shadow: 0 0 0 1px var(--clr-tier-rare-muted);
+}
+.hero-roster-card--legendary.hero-roster-card--selected,
+.hero-roster-card--legendary:hover {
+  border-color: var(--clr-tier-legendary);
+  box-shadow: 0 0 0 1px var(--clr-tier-legendary-muted);
+}
+
+.hero-roster-card--selected {
+  background: var(--clr-bg-active);
+}
+
+.hero-roster-portrait {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.hero-roster-portrait--common    { background: var(--clr-tier-common-muted);    border: 1px solid var(--clr-tier-common); }
+.hero-roster-portrait--rare      { background: var(--clr-tier-rare-muted);      border: 1px solid var(--clr-tier-rare); }
+.hero-roster-portrait--legendary { background: var(--clr-tier-legendary-muted); border: 1px solid var(--clr-tier-legendary); }
+
+.hero-roster-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-roster-name {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-roster-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+
+.hero-tier-pill {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  border: 1px solid currentColor;
+}
+.tier-pill-common    { color: var(--clr-tier-common); }
+.tier-pill-rare      { color: var(--clr-tier-rare); }
+.tier-pill-legendary { color: var(--clr-tier-legendary); }
+
+.hero-level-pip {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--clr-text-muted);
+}
+
+.hero-roster-status {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  min-width: 60px;
+}
+
+/* "Card Ready" pill for unowned heroes that have a card */
+.hero-card-ready-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: hsla(140, 60%, 10%, 0.8);
+  border: 1px solid var(--clr-success);
+  color: var(--clr-success);
+  white-space: nowrap;
+}
+
+/* Mini fragment bar in roster card */
+.hero-roster-frag-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  width: 64px;
+}
+
+.hero-roster-frag-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.hero-roster-frag-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+}
+.hero-roster-frag-text {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--clr-text-muted);
+}
+
+/* ── Right: Detail pane ──────────────────── */
+
+.heroes-detail-pane {
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+  border-radius: var(--radius-xl);
+  background: var(--clr-bg-surface);
+  border: 1px solid var(--clr-border);
+}
+
+.heroes-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 300px;
+  gap: var(--space-3);
+  color: var(--clr-text-muted);
+}
+.heroes-detail-empty-icon { font-size: 2rem; opacity: 0.4; }
+.heroes-detail-empty p   { font-size: var(--text-sm); }
+
+/* Detail panel container */
+.heroes-detail-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Hero header bar inside detail panel */
+.heroes-detail-hero-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--clr-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--clr-bg-surface);
+}
+
+.heroes-detail-hero-header--common    { border-left: 4px solid var(--clr-tier-common); }
+.heroes-detail-hero-header--rare      { border-left: 4px solid var(--clr-tier-rare); }
+.heroes-detail-hero-header--legendary { border-left: 4px solid var(--clr-tier-legendary); }
+
+.hero-detail-portrait {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  line-height: 1;
+}
+.hero-detail-portrait--common    { background: var(--clr-tier-common-muted);    border: 1px solid var(--clr-tier-common); }
+.hero-detail-portrait--rare      { background: var(--clr-tier-rare-muted);      border: 1px solid var(--clr-tier-rare); }
+.hero-detail-portrait--legendary { background: var(--clr-tier-legendary-muted); border: 1px solid var(--clr-tier-legendary); }
+
+.hero-detail-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-detail-name {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  margin: var(--space-1) 0 2px;
+}
+
+.hero-detail-title-sub {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+}
+
+.hero-detail-level-badge {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border-light);
+  color: var(--clr-text-secondary);
+}
+
+/* Detail body scroll area */
+.hero-detail-body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Sections inside detail body */
+.hero-detail-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.hero-detail-section {
+  padding: var(--space-4);
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hero-detail-section-title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--clr-text-muted);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--clr-border);
+}
+
+/* Fragment bar in detail panel */
+.hero-detail-frag-bar-wrap {
+  height: 8px;
+  background: rgba(255,255,255,0.08);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.hero-detail-frag-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+}
+.hero-detail-frag-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+}
+
+/* assignment buttons in detail */
+.hero-assign-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+.hero-assign-buttons .btn { flex: 1; }
+
+/* XP label in detail */
+.hero-xp-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+}
+
+/* XP bundle actions */
+.hero-xp-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-1);
+}
+
+/* Utility margin */
+.mb-3 { margin-bottom: var(--space-3); }
+
+/* Awakening costs row */
+.hero-awaken-costs {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.hero-awaken-costs .btn { flex: 1; min-width: 120px; }
+
+/* Hero description in detail panel */
+.heroes-detail-panel .hero-description {
+  font-size: var(--text-sm);
+  color: var(--clr-text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}

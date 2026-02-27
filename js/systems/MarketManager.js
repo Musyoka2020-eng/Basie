@@ -8,60 +8,52 @@ import { eventBus } from '../core/EventBus.js';
 
 const TRADES = [
   {
-    id: 'gold_for_wood',
-    label: 'Buy Wood',
-    from: { resource: 'gold', amount: 100 },
-    to:   { resource: 'wood', amount: 60 },
-    icon: '🪵',
-    description: 'Convert Gold into Wood at market rates.',
-  },
-  {
-    id: 'gold_for_stone',
-    label: 'Buy Stone',
-    from: { resource: 'gold', amount: 100 },
-    to:   { resource: 'stone', amount: 50 },
+    id: 'wood_for_stone',
+    label: 'Trade Wood → Stone',
+    from: { resource: 'wood', amount: 100 },
+    to:   { resource: 'stone', amount: 90 },
     icon: '🪨',
-    description: 'Convert Gold into Stone at market rates.',
+    description: 'Exchange Wood for Stone with local merchants.',
   },
   {
-    id: 'gold_for_food',
-    label: 'Buy Food',
-    from: { resource: 'gold', amount: 80 },
-    to:   { resource: 'food', amount: 40 },
-    icon: '🌾',
-    description: 'Buy emergency food supplies.',
+    id: 'stone_for_wood',
+    label: 'Trade Stone → Wood',
+    from: { resource: 'stone', amount: 100 },
+    to:   { resource: 'wood', amount: 90 },
+    icon: '🪵',
+    description: 'Exchange Stone for Wood with local merchants.',
   },
   {
-    id: 'gold_for_mana',
-    label: 'Buy Mana',
-    from: { resource: 'gold', amount: 200 },
-    to:   { resource: 'mana', amount: 50 },
-    icon: '💎',
-    description: 'Purchase crystallized mana from travelling wizards.',
-  },
-  {
-    id: 'wood_for_gold',
-    label: 'Sell Wood',
-    from: { resource: 'wood', amount: 80 },
-    to:   { resource: 'gold', amount: 60 },
-    icon: '💰',
-    description: 'Sell surplus Wood for Gold.',
-  },
-  {
-    id: 'stone_for_gold',
-    label: 'Sell Stone',
+    id: 'stone_for_iron',
+    label: 'Trade Stone → Iron',
     from: { resource: 'stone', amount: 80 },
-    to:   { resource: 'gold', amount: 55 },
-    icon: '💰',
-    description: 'Sell surplus Stone for Gold.',
+    to:   { resource: 'iron', amount: 30 },
+    icon: '⚙️',
+    description: 'Trade Stone ore deposits for processed Iron.',
   },
   {
-    id: 'food_for_gold',
-    label: 'Sell Food',
-    from: { resource: 'food', amount: 50 },
-    to:   { resource: 'gold', amount: 40 },
-    icon: '💰',
-    description: 'Sell surplus Food at the market.',
+    id: 'iron_for_money',
+    label: 'Sell Iron → Money',
+    from: { resource: 'iron', amount: 50 },
+    to:   { resource: 'money', amount: 400 },
+    icon: '🪙',
+    description: 'Sell valuable Iron ore for Money to merchant caravans.',
+  },
+  {
+    id: 'food_for_water',
+    label: 'Trade Food → Water',
+    from: { resource: 'food', amount: 100 },
+    to:   { resource: 'water', amount: 80 },
+    icon: '💧',
+    description: 'Exchange surplus Food for Water reserves.',
+  },
+  {
+    id: 'water_for_food',
+    label: 'Trade Water → Food',
+    from: { resource: 'water', amount: 100 },
+    to:   { resource: 'food', amount: 80 },
+    icon: '🌾',
+    description: 'Exchange Water for Food from farmers.',
   },
 ];
 
@@ -78,6 +70,8 @@ export class MarketManager {
     /** @type {Map<string, number>} tradeId -> numberOfTimesBought */
     this._purchaseCounts = new Map();
     TRADES.forEach(t => this._purchaseCounts.set(t.id, 0));
+    /** @type {string} ISO date string of last daily reset (YYYY-MM-DD) */
+    this._lastResetDate = new Date().toISOString().slice(0, 10);
     this._techBonuses = {};
     eventBus.on('resources:bonusChanged', b => { this._techBonuses = b || {}; });
   }
@@ -132,13 +126,39 @@ export class MarketManager {
     });
   }
 
-  update(dt) { /* No tick needed */ }
+  update(dt) {
+    // Daily price reset — check calendar day each tick
+    const today = new Date().toISOString().slice(0, 10);
+    if (today !== this._lastResetDate) {
+      this._purchaseCounts = new Map();
+      TRADES.forEach(t => this._purchaseCounts.set(t.id, 0));
+      this._lastResetDate = today;
+      eventBus.emit('market:pricesReset');
+      eventBus.emit('notification:show', { type: 'info', title: '🏪 Market Reset', message: 'Daily prices have been reset!' });
+    }
+  }
 
-  serialize() { return { purchaseCounts: Object.fromEntries(this._purchaseCounts) }; }
+  serialize() {
+    return {
+      purchaseCounts: Object.fromEntries(this._purchaseCounts),
+      lastResetDate: this._lastResetDate,
+    };
+  }
+
   deserialize(data) {
-    if (!data?.purchaseCounts) return;
-    for (const [id, count] of Object.entries(data.purchaseCounts)) {
-      this._purchaseCounts.set(id, count);
+    if (!data) return;
+    // Restore last reset date and check if a new day has begun
+    this._lastResetDate = data.lastResetDate || new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    if (today !== this._lastResetDate) {
+      // New day since last save — reset all counts
+      this._purchaseCounts = new Map();
+      TRADES.forEach(t => this._purchaseCounts.set(t.id, 0));
+      this._lastResetDate = today;
+    } else if (data.purchaseCounts) {
+      for (const [id, count] of Object.entries(data.purchaseCounts)) {
+        this._purchaseCounts.set(id, count);
+      }
     }
   }
 }

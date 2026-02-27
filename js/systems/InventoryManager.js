@@ -14,10 +14,16 @@ export class InventoryManager {
     this._items = new Map();
     this._hm = null; // set via setHeroManager()
     this._rm = null; // set via setResourceManager()
+    this._bm = null; // set via setBuildingManager()
+    this._um = null; // set via setUnitManager()
+    this._tm = null; // set via setTechnologyManager()
   }
 
   setHeroManager(hm)       { this._hm = hm; }
   setResourceManager(rm)   { this._rm = rm; }
+  setBuildingManager(bm)   { this._bm = bm; }
+  setUnitManager(um)       { this._um = um; }
+  setTechnologyManager(tm) { this._tm = tm; }
 
   /** Get count of fragments for a hero by heroId */
   getFragmentCount(heroId) {
@@ -112,10 +118,10 @@ export class InventoryManager {
   /**
    * Use/consume one of an item, applying its effect.
    * @param {string} itemId
-   * @param {{ heroId?: string }} [opts]
+   * @param {{ heroId?: string, queueType?: string }} [opts]
    * @returns {{ success: boolean, reason?: string }}
    */
-  useItem(itemId, { heroId } = {}) {
+  useItem(itemId, { heroId, queueType } = {}) {
     const cfg = INVENTORY_ITEMS[itemId];
     if (!cfg) return { success: false, reason: 'Unknown item.' };
     if (!this.hasItem(itemId)) return { success: false, reason: `You don't have ${cfg.name}.` };
@@ -142,10 +148,13 @@ export class InventoryManager {
     } else if (cfg.type === 'xp_bundle') {
       if (!heroId) return { success: false, reason: 'Select a hero to receive the XP.' };
       if (!this._hm) return { success: false, reason: 'Hero system not available.' };
-      const r = this._hm.awardHeroXP(heroId, cfg.xpAmount);
+      // Support both cfg.xpAmount and cfg.grants.xp (GAME_DATA uses grants.xp)
+      const xpAmount = cfg.xpAmount ?? cfg.grants?.xp ?? 0;
+      if (!xpAmount) return { success: false, reason: 'XP bundle has no XP value configured.' };
+      const r = this._hm.awardHeroXP(heroId, xpAmount);
       if (!r?.success) return { success: false, reason: r?.reason ?? 'Could not award XP.' };
       this.removeItem(itemId, 1);
-      return { success: true, xpAmount: cfg.xpAmount };
+      return { success: true, xpAmount };
 
     } else if (cfg.type === 'resource_bundle') {
       if (!this._rm) return { success: false, reason: 'Resource system not available.' };
@@ -160,6 +169,30 @@ export class InventoryManager {
       this._hm.activateBuff({ value: cfg.value, durationMs: cfg.durationMs });
       eventBus.emit('inventory:itemUsed', { itemId });
       return { success: true, durationMs: cfg.durationMs, value: cfg.value };
+
+    } else if (cfg.type === 'speed_boost') {
+      const target = queueType ?? cfg.target;
+      if (cfg.target !== 'any' && target !== cfg.target) {
+        return { success: false, reason: `This speedup only works on ${cfg.target}.` };
+      }
+      const skipSec = cfg.skipSeconds >= 999999 || !isFinite(cfg.skipSeconds) ? 999999 : cfg.skipSeconds;
+      let result;
+      if (target === 'building') {
+        if (!this._bm) return { success: false, reason: 'Building system not available.' };
+        result = this._bm.reduceActiveTimer(skipSec);
+      } else if (target === 'training') {
+        if (!this._um) return { success: false, reason: 'Training system not available.' };
+        result = this._um.reduceActiveTrainTimer(skipSec);
+      } else if (target === 'research') {
+        if (!this._tm) return { success: false, reason: 'Research system not available.' };
+        result = this._tm.reduceActiveResearchTimer(skipSec);
+      } else {
+        return { success: false, reason: 'Invalid speedup target.' };
+      }
+      if (!result.success) return result;
+      this.removeItem(itemId, 1);
+      eventBus.emit('inventory:itemUsed', { itemId, target, skipSeconds: cfg.skipSeconds });
+      return { success: true, remaining: result.remaining, completed: result.completed, target };
 
     }
     return { success: false, reason: 'This item cannot be used.' };

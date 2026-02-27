@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="css/components/story.css" />
   <link rel="stylesheet" href="css/components/inventory.css" />
   <link rel="stylesheet" href="css/components/gacha.css" />
+  <link rel="stylesheet" href="css/components/heroes.css" />
 </head>
 <body>
 
@@ -85,17 +86,6 @@
       </div>
       <!-- RESOURCE BAR -->
       <div class="resource-bar" id="resource-bar">
-        <div class="resource-chip" id="res-gold" title="Gold">
-          <span class="res-icon">💰</span>
-          <div class="res-data">
-            <span class="res-name">Gold</span>
-            <span class="res-value" id="v-gold">0</span>
-          </div>
-          <div class="res-rate-col">
-            <span class="res-cap" id="c-gold">/ 5k</span>
-            <span class="res-rate" id="r-gold">+0/s</span>
-          </div>
-        </div>
         <div class="resource-chip" id="res-wood" title="Wood">
           <span class="res-icon">🪵</span>
           <div class="res-data">
@@ -129,20 +119,68 @@
             <span class="res-rate" id="r-food">+0/s</span>
           </div>
         </div>
-        <div class="resource-chip" id="res-mana" title="Mana">
-          <span class="res-icon">💎</span>
+        <div class="resource-chip" id="res-iron" title="Iron">
+          <span class="res-icon">⚙️</span>
           <div class="res-data">
-            <span class="res-name">Mana</span>
-            <span class="res-value" id="v-mana">0</span>
+            <span class="res-name">Iron</span>
+            <span class="res-value" id="v-iron">0</span>
           </div>
           <div class="res-rate-col">
-            <span class="res-cap" id="c-mana">/ 500</span>
-            <span class="res-rate" id="r-mana">+0/s</span>
+            <span class="res-cap" id="c-iron">/ 2k</span>
+            <span class="res-rate" id="r-iron">+0/s</span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-water" title="Water">
+          <span class="res-icon">💧</span>
+          <div class="res-data">
+            <span class="res-name">Water</span>
+            <span class="res-value" id="v-water">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-water">/ 2k</span>
+            <span class="res-rate" id="r-water">+0/s</span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-money" title="Money">
+          <span class="res-icon">🪙</span>
+          <div class="res-data">
+            <span class="res-name">Money</span>
+            <span class="res-value" id="v-money">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-money">/ 50k</span>
+            <span class="res-rate" id="r-money">+0/s</span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-diamond" title="Diamond">
+          <span class="res-icon">💎</span>
+          <div class="res-data">
+            <span class="res-name">Diamond</span>
+            <span class="res-value" id="v-diamond">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-rate" id="r-diamond"></span>
+          </div>
+        </div>
+        <div class="resource-chip" id="res-cafeteria" title="Cafeteria Stock" style="display:none">
+          <span class="res-icon">🍽️</span>
+          <div class="res-data">
+            <span class="res-name">Cafeteria</span>
+            <span class="res-value" id="v-cafeteria">0</span>
+          </div>
+          <div class="res-rate-col">
+            <span class="res-cap" id="c-cafeteria">/ 0</span>
+            <span class="res-rate" id="r-cafeteria"></span>
           </div>
         </div>
       </div>
       <!-- HEADER ACTIONS -->
       <div class="header-actions">
+        <button class="header-icon-btn buff-hud-badge hidden" id="buff-hud-badge" title="Active Buffs — click to manage" onclick="document.getElementById('nav-heroes')?.click()">
+          ⚗️ <span id="buff-badge-count">0</span>
+          <span class="buff-badge-sep">·</span>
+          <span id="buff-badge-timer"></span>
+        </button>
         <button class="header-icon-btn" id="btn-inventory" title="Inventory" aria-label="Inventory">🎒</button>
         <button class="header-icon-btn" id="btn-mail" title="Inbox" aria-label="Inbox">
           📬 <span class="badge hidden" id="mail-badge">0</span>
@@ -166,6 +204,7 @@
         <ul class="nav-list">
           <li><button class="nav-btn active" data-view="base"     id="nav-base"     aria-label="Base">🏰 <span>Base</span></button></li>
           <li><button class="nav-btn"         data-view="barracks" id="nav-barracks" aria-label="Barracks">⚔️ <span>Barracks</span></button></li>
+          <li><button class="nav-btn"         data-view="military" id="nav-military" aria-label="Military">🗡️ <span>Military</span></button></li>
           <li><button class="nav-btn"         data-view="heroes"   id="nav-heroes"   aria-label="Heroes">🦸 <span>Heroes</span></button></li>
           <li><button class="nav-btn"         data-view="combat"   id="nav-combat"   aria-label="Combat">🔥 <span>Combat</span></button></li>
           <li><button class="nav-btn"         data-view="research" id="nav-research" aria-label="Research">🔬 <span>Research</span></button></li>
@@ -192,7 +231,7 @@
         <section class="view hidden" id="view-barracks">
           <div class="view-header">
             <h2>⚔️ Barracks</h2>
-            <p class="view-subtitle">Train and manage your military forces</p>
+            <p class="view-subtitle">Manage your squads and assign heroes</p>
           </div>
           <div class="barracks-layout">
             <!-- Training Queue (visible only when active) -->
@@ -205,42 +244,55 @@
               </div>
             </div>
 
-            <!-- Tab System for Units & Squads -->
-            <div class="barracks-tabs">
-              <div class="barracks-tab-buttons">
-                <button class="barracks-tab-btn active" data-tab="tab-squads">Active Squads</button>
-                <button class="barracks-tab-btn" data-tab="tab-units">Reserve Units</button>
+            <!-- Squads -->
+            <div class="squads-layout">
+              <!-- Left: Squad List -->
+              <div class="squads-sidebar">
+                <div class="squads-header">
+                  <h4>Squads</h4>
+                  <span id="squad-cap-display" class="squad-cap-label"></span>
+                  <button class="btn btn-sm btn-primary" id="btn-create-squad">+ New</button>
+                </div>
+                <div class="squads-list" id="squads-list"></div>
               </div>
 
-              <!-- Active Squads Tab with Split Layout -->
-              <div class="barracks-tab-content active" id="tab-squads">
-                <div class="squads-layout">
-                  <!-- Left: Squad List -->
-                  <div class="squads-sidebar">
-                    <div class="squads-header">
-                      <h4>Squads</h4>
-                      <button class="btn btn-sm btn-primary" id="btn-create-squad">+ New</button>
-                    </div>
-                    <div class="squads-list" id="squads-list"></div>
-                  </div>
-                  
-                  <!-- Right: Squad Management Panel -->
-                  <div class="squad-management-panel" id="squad-management-panel">
-                    <div class="squad-panel-placeholder">Select a squad to manage</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Reserve Units Tab -->
-              <div class="barracks-tab-content" id="tab-units">
-                <div class="barracks-section">
-                  <div class="barracks-section-header">
-                    <h3><span class="section-icon">⚙️</span> Reserve Units</h3>
-                  </div>
-                  <div class="reserve-units-grid" id="units-grid"></div>
-                </div>
+              <!-- Right: Squad Management Panel -->
+              <div class="squad-management-panel" id="squad-management-panel">
+                <div class="squad-panel-placeholder">Select a squad to manage</div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- MILITARY VIEW -->
+        <section class="view hidden" id="view-military">
+          <div class="view-header">
+            <h2>🗡️ Military</h2>
+            <p class="view-subtitle">Train units at your military buildings</p>
+          </div>
+          <div class="military-layout">
+            <!-- Training Queue: 4 building slots (pinned top, hidden when empty) -->
+            <div class="military-queue-section" style="display:none" id="military-queue-section">
+              <div class="military-queue-header">
+                <span class="section-icon">⏱️</span>
+                <h3>Training Queues</h3>
+              </div>
+              <div class="military-queue-grid" id="military-queue-grid"></div>
+            </div>
+
+            <!-- Building Picker Tabs -->
+            <div class="military-building-tabs">
+              <button class="military-building-tab active" data-building="infantryhall">🗡️ Infantry Hall</button>
+              <button class="military-building-tab" data-building="archeryrange">🏹 Archery Range</button>
+              <button class="military-building-tab" data-building="cavalrystable">🐴 Cavalry Stable</button>
+              <button class="military-building-tab" data-building="siegeworkshop">💥 Siege Workshop</button>
+            </div>
+
+            <!-- Building Status Banner -->
+            <div id="military-building-status" class="military-building-status"></div>
+
+            <!-- Unit Training Cards -->
+            <div class="buildings-grid" id="military-units-grid"></div>
           </div>
         </section>
 
@@ -321,6 +373,9 @@
       </div>
       <div class="statusbar-item">
         <span>🔬 Research: <strong id="sb-research">None</strong></span>
+      </div>
+      <div class="statusbar-item">
+        <span>👥 Population: <strong id="sb-population">0/0</strong></span>
       </div>
       <div class="statusbar-item">
         <span>⏱️ Session: <strong id="sb-time">0m</strong></span>

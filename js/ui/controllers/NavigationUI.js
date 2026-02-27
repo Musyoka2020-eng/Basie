@@ -11,7 +11,7 @@ import { RES_META, fmt } from '../uiUtils.js';
 
 export class NavigationUI {
   /**
-   * @param {{ rm, bm, um, tech, user, mail }} systems
+   * @param {{ rm, bm, um, tech, user, mail, heroes, notifications }} systems
    */
   constructor(systems) {
     this._s = systems;
@@ -73,6 +73,7 @@ export class NavigationUI {
     eventBus.on('mail:received',          d    => this._updateMailBadge(d.unreadCount));
     eventBus.on('mail:read',              d    => this._updateMailBadge(d.unreadCount));
     eventBus.on('mail:deleted',           d    => this._updateMailBadge(d.unreadCount));
+    eventBus.on('mail:updated',           d    => this._updateMailBadge(d.unreadCount));
     eventBus.on('game:saved',             ()   => this._flashSaveIndicator());
     eventBus.on('tick:ui',               ()   => this._refreshStatusBar());
     eventBus.on('building:completed',     ()   => this._refreshStatusBar());
@@ -82,6 +83,12 @@ export class NavigationUI {
     eventBus.on('tech:researched',        ()   => this._refreshStatusBar());
     eventBus.on('tech:started',           ()   => this._refreshStatusBar());
     eventBus.on('ui:navigateTo',          v    => this._switchView(v));
+    eventBus.on('population:updated',     ()   => this._refreshStatusBar());
+    eventBus.on('buffs:updated',          buffs => this._updateBuffBadge(buffs));
+    eventBus.on('tick:ui',                ()   => this._refreshBuffBadgeTick());
+    eventBus.on('building:cafeteria:shortfall', () => {
+      this._s.notifications?.show('warning', '🍽️ Food Running Low', 'Cafeteria supplies are critically low — population is shrinking!');
+    });
   }
 
   // ---- RESOURCES ----
@@ -95,8 +102,36 @@ export class NavigationUI {
       const capEl  = document.getElementById(`c-${key}`);
       if (valEl)  valEl.textContent  = fmt(res.amount);
       if (rateEl) rateEl.textContent = res.perSec > 0 ? `+${res.perSec.toFixed(1)}/s` : '';
-      if (capEl)  capEl.textContent  = `/ ${fmt(res.cap)}`;
+      if (capEl && res.cap !== Infinity) capEl.textContent = `/ ${fmt(res.cap)}`;
     }
+    // Cafeteria aggregate stock chip
+    this._renderCafeteriaChip();
+  }
+
+  _renderCafeteriaChip() {
+    const chip   = document.getElementById('res-cafeteria');
+    if (!chip) return;
+    const stocks = this._s.bm?.getCafeteriaStock?.() ?? [];
+    if (stocks.length === 0) { chip.style.display = 'none'; return; }
+    chip.style.display = '';
+    let totalFood = 0, totalWater = 0, totalCapFood = 0, totalCapWater = 0;
+    for (const s of stocks) {
+      totalFood    += s.stock.food;
+      totalWater   += s.stock.water;
+      totalCapFood += s.stockCap.food;
+      totalCapWater += s.stockCap.water;
+    }
+    const minStock = Math.min(totalFood, totalWater);
+    const minCap   = Math.min(totalCapFood, totalCapWater);
+    const valEl    = document.getElementById('v-cafeteria');
+    const capEl    = document.getElementById('c-cafeteria');
+    const rateEl   = document.getElementById('r-cafeteria');
+    if (valEl)  valEl.textContent  = fmt(Math.floor(minStock));
+    if (capEl)  capEl.textContent  = `/ ${fmt(minCap)}`;
+    // Color the chip when stock is low
+    const pct = minCap > 0 ? minStock / minCap : 1;
+    chip.style.borderColor = pct < 0.2 ? 'var(--clr-danger)' : '';
+    if (rateEl) rateEl.textContent = pct < 0.2 ? '⚠️ Low' : '';
   }
 
   // ---- PROFILE ----
@@ -119,6 +154,8 @@ export class NavigationUI {
     if (el('sb-research')) el('sb-research').textContent = activeRes
       ? `${activeRes.name} (${Math.max(0, Math.ceil((activeRes.researchEndsAt - Date.now()) / 1000))}s)`
       : 'None';
+    const pop = this._s.rm.getPopulation();
+    if (el('sb-population')) el('sb-population').textContent = `${Math.floor(pop.current)} / ${pop.cap}`;
     const mins = Math.floor((Date.now() - this._sessionStartMs) / 60000);
     if (el('sb-time')) el('sb-time').textContent = mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
   }
@@ -128,6 +165,31 @@ export class NavigationUI {
     if (!el) return;
     el.textContent = '💾 Saving...'; el.style.color = 'var(--clr-gold)';
     setTimeout(() => { el.textContent = '✅ Saved'; el.style.color = 'var(--clr-success)'; }, 1200);
+  }
+
+  // ---- BUFF BADGE ----
+  _updateBuffBadge(buffs) {
+    const badge = document.getElementById('buff-hud-badge');
+    if (!badge) return;
+    if (!buffs || buffs.length === 0) {
+      badge.classList.add('hidden');
+      return;
+    }
+    badge.classList.remove('hidden');
+    const shortest = Math.min(...buffs.map(b => b.remaining));
+    const secs = Math.ceil(shortest / 1000);
+    const mins = Math.floor(secs / 60);
+    const sec  = secs % 60;
+    const timeStr = mins > 0 ? `${mins}m ${sec < 10 ? '0' : ''}${sec}s` : `${secs}s`;
+    const countEl = badge.querySelector('#buff-badge-count');
+    const timerEl = badge.querySelector('#buff-badge-timer');
+    if (countEl) countEl.textContent = buffs.length;
+    if (timerEl) timerEl.textContent = timeStr;
+  }
+
+  _refreshBuffBadgeTick() {
+    const buffs = this._s.heroes?.getActiveBuffsWithRemaining?.() ?? [];
+    this._updateBuffBadge(buffs);
   }
 
   // ---- MAIL BADGE ----

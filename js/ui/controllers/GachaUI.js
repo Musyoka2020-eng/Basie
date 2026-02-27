@@ -34,7 +34,7 @@ export class GachaUI {
   /** @param {{ inventory, heroes, notifications }} systems */
   constructor(systems) {
     this._s       = systems;
-    this._history = []; // session-only, last 5
+    this._history = []; // session-only, last 10
     this._modal   = null;
   }
 
@@ -107,7 +107,7 @@ export class GachaUI {
 
   _addToHistory(result) {
     this._history.unshift(result);
-    if (this._history.length > 5) this._history.pop();
+    if (this._history.length > 10) this._history.pop();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -116,81 +116,92 @@ export class GachaUI {
 
   _buildIdleHtml(scrollTier) {
     const scrollCfg = INVENTORY_ITEMS[`scroll_${scrollTier}`];
+    const tierGlowClass = `gacha-stage--glow-${scrollTier}`;
     return `
       <div class="gacha-panel">
         <div class="gacha-header">
-          <h2 class="gacha-title">${scrollCfg?.icon ?? '🎲'} Recruitment Roll</h2>
-          <button class="btn btn-sm btn-ghost gacha-close-btn" id="gacha-close">✕</button>
+          <div class="gacha-header-left">
+            <span class="gacha-scroll-tier-badge gacha-scroll-tier-badge--${scrollTier}">${scrollTier.charAt(0).toUpperCase() + scrollTier.slice(1)}</span>
+            <h2 class="gacha-title">${scrollCfg?.name ?? 'Recruitment Scroll'}</h2>
+          </div>
+          <button class="gacha-close-x" id="gacha-close">✕</button>
         </div>
-        <div class="gacha-stage gacha-stage--idle">
-          <div class="gacha-scroll-icon">${scrollCfg?.icon ?? '📜'}</div>
-          <div class="gacha-scroll-name">${scrollCfg?.name ?? 'Recruitment Scroll'}</div>
+        <div class="gacha-stage ${tierGlowClass}">
+          <div class="gacha-idle-icon">${scrollCfg?.icon ?? '📜'}</div>
+          <p class="gacha-idle-label">Preparing the roll…</p>
         </div>
       </div>`;
   }
 
   _buildRollingHtml(scrollTier) {
+    const tierGlowClass = `gacha-stage--glow-${scrollTier}`;
     return `
       <div class="gacha-panel">
         <div class="gacha-header">
-          <h2 class="gacha-title">🎲 Rolling…</h2>
-        </div>
-        <div class="gacha-stage gacha-stage--rolling">
-          <div class="gacha-dice-container">
-            <div class="gacha-dice gacha-dice--spin">🎲</div>
+          <div class="gacha-header-left">
+            <span class="gacha-scroll-tier-badge gacha-scroll-tier-badge--${scrollTier}">${scrollTier.charAt(0).toUpperCase() + scrollTier.slice(1)}</span>
+            <h2 class="gacha-title">Rolling…</h2>
           </div>
-          <div class="gacha-rolling-label">The dice fall…</div>
+        </div>
+        <div class="gacha-stage gacha-stage--rolling ${tierGlowClass}">
+          <div class="gacha-dice gacha-dice--spin">🎲</div>
+          <p class="gacha-rolling-text">The dice fall…</p>
         </div>
       </div>`;
   }
 
   _buildResultHtml(result, scrollTier) {
     const outcomeMeta = OUTCOME_META[result.outcome] ?? { icon: '❓', label: 'Unknown' };
-    let resultCard = '';
-    let resultTitle = outcomeMeta.label;
-    let glowClass   = '';
-    let detailHtml  = '';
+    let resultTitle  = outcomeMeta.label;
+    let glowClass    = '';
+    let resultTier   = '';
+    let iconHtml     = '';
+    let detailHtml   = '';
+    let badgeHtml    = '';
 
     if (result.outcome === 'hero') {
       const heroCfg = HEROES_CONFIG[result.heroId];
       const tier    = heroCfg?.tier ?? 'common';
       glowClass     = `gacha-result--${tier}`;
-      resultTitle   = result.isDuplicate ? '⚠️ Duplicate Hero!' : `${outcomeMeta.label}!`;
-
-      detailHtml = `
-        <div class="gacha-hero-portrait">
-          <span class="gacha-hero-icon">${heroCfg?.icon ?? '👤'}</span>
-          <span class="gacha-tier-badge gacha-tier-badge--${tier}">${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>
-        </div>
+      resultTier    = tier;
+      resultTitle   = result.isDuplicate ? '⚠️ Duplicate Hero!' : 'Hero Recruited!';
+      iconHtml      = `<div class="gacha-result-hero-icon gacha-result-hero-icon--${tier}">${heroCfg?.icon ?? '👤'}</div>`;
+      badgeHtml     = `<span class="gacha-result-tier-badge gacha-result-tier-badge--${tier}">${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>`;
+      detailHtml    = `
         <div class="gacha-result-name">${heroCfg?.name ?? result.heroId}</div>
         <div class="gacha-result-sub">${heroCfg?.title ?? ''}</div>
         ${result.isDuplicate
-          ? `<div class="gacha-duplicate-notice">Already owned — a duplicate card has been added to your inventory for Awakening.</div>`
-          : `<div class="gacha-recruit-notice">Hero has joined your roster! Visit <strong>Heroes</strong> to assign them.</div>`}`;
+          ? `<div class="gacha-notice gacha-notice--warning">Already owned — a duplicate card was added for Awakening.</div>`
+          : `<div class="gacha-notice gacha-notice--info">Hero joined your roster! Visit <strong>Heroes</strong> to assign them.</div>`}`;
 
     } else if (result.outcome === 'fragment') {
-      const fragCfg  = result.itemId ? INVENTORY_ITEMS[result.itemId] : null;
       const heroCfg  = result.heroId ? HEROES_CONFIG[result.heroId] : null;
+      const fragCfg  = result.itemId ? INVENTORY_ITEMS[result.itemId] : null;
       const tier     = heroCfg?.tier ?? 'common';
       glowClass      = `gacha-result--${tier}`;
-      resultTitle    = `${outcomeMeta.label}!`;
+      resultTier     = tier;
+      resultTitle    = 'Hero Fragment!';
+      iconHtml       = `<div class="gacha-result-generic-icon">${fragCfg?.icon ?? '🔮'}</div>`;
+      badgeHtml      = `<span class="gacha-result-tier-badge gacha-result-tier-badge--${tier}">${tier.charAt(0).toUpperCase() + tier.slice(1)} Fragment</span>`;
 
       const ownedFrag  = result.fragmentsOwned ?? 0;
       const neededFrag = result.fragmentsNeeded ?? GACHA_CONFIG.fragmentsToSummon[tier] ?? 10;
       const pct        = Math.min(100, Math.round((ownedFrag / neededFrag) * 100));
 
       detailHtml = `
-        <div class="gacha-fragment-icon">${fragCfg?.icon ?? '🔮'}</div>
         <div class="gacha-result-name">${fragCfg?.name ?? 'Hero Fragment'}</div>
         <div class="gacha-result-sub">For ${heroCfg?.name ?? result.heroId}</div>
         <div class="gacha-frag-progress">
-          <div class="gacha-frag-bar-wrap">
-            <div class="gacha-frag-bar" style="width:${pct}%"></div>
+          <div class="gacha-frag-bar-header">
+            <span>Fragment Progress</span>
+            <span>${ownedFrag} / ${neededFrag}</span>
           </div>
-          <span class="gacha-frag-count">${ownedFrag} / ${neededFrag} fragments</span>
+          <div class="gacha-frag-bar-track">
+            <div class="gacha-frag-bar-fill" style="width:${pct}%"></div>
+          </div>
         </div>
         ${result.canSummon
-          ? `<div class="gacha-summon-ready">✨ Enough fragments to summon! Use the Heroes tab.</div>`
+          ? `<div class="gacha-notice gacha-notice--success">✨ Enough fragments to summon! Visit the Heroes tab.</div>`
           : ''}`;
 
     } else {
@@ -199,38 +210,42 @@ export class GachaUI {
       const rarity  = itemCfg?.rarity ?? 'common';
       glowClass     = `gacha-result--${rarity}`;
       resultTitle   = `${outcomeMeta.label}!`;
+      iconHtml      = `<div class="gacha-result-generic-icon">${itemCfg?.icon ?? outcomeMeta.icon}</div>`;
+      badgeHtml     = `<span class="gacha-result-type-badge gacha-result-type-badge--${result.outcome}">${outcomeMeta.label}</span>`;
       detailHtml    = `
-        <div class="gacha-item-icon">${itemCfg?.icon ?? outcomeMeta.icon}</div>
         <div class="gacha-result-name">${itemCfg?.name ?? outcomeMeta.label}</div>
         <div class="gacha-result-sub">${itemCfg?.description ?? ''}</div>`;
     }
 
-    resultCard = `
-      <div class="gacha-result-card ${glowClass}">
-        <div class="gacha-result-card-inner">
-          ${detailHtml}
-        </div>
-      </div>`;
-
-    const scrollsLeft = this._s.inventory.getQuantity(`scroll_${scrollTier}`);
-    const historyHtml = this._buildHistoryHtml();
+    const scrollsLeft  = this._s.inventory.getQuantity(`scroll_${scrollTier}`);
+    const historyHtml  = this._buildHistoryHtml();
+    const tierGlowClass = `gacha-stage--glow-${resultTier || scrollTier}`;
+    const scrollCfg    = INVENTORY_ITEMS[`scroll_${scrollTier}`];
 
     return `
       <div class="gacha-panel">
         <div class="gacha-header">
-          <h2 class="gacha-title">🎲 ${resultTitle}</h2>
-          <button class="btn btn-sm btn-ghost gacha-close-btn" id="gacha-close">✕</button>
+          <div class="gacha-header-left">
+            <span class="gacha-scroll-tier-badge gacha-scroll-tier-badge--${scrollTier}">${scrollTier.charAt(0).toUpperCase() + scrollTier.slice(1)}</span>
+            <h2 class="gacha-title">${resultTitle}</h2>
+          </div>
+          <button class="gacha-close-x gacha-close-btn" id="gacha-close">✕</button>
         </div>
-        <div class="gacha-stage gacha-stage--result">
-          ${resultCard}
+        <div class="gacha-stage gacha-stage--result ${tierGlowClass}">
+          <div class="gacha-result-card ${glowClass}">
+            ${iconHtml}
+            ${badgeHtml}
+            ${detailHtml}
+          </div>
         </div>
         <div class="gacha-footer">
           ${scrollsLeft > 0
             ? `<button class="btn btn-gold gacha-roll-again" id="gacha-roll-again">
-                 🎲 Roll Again (×${scrollsLeft} left)
+                 🎲 Roll Again
+                 <span class="gacha-roll-count">×${scrollsLeft} remaining</span>
                </button>`
-            : `<div class="gacha-no-scrolls">No more ${scrollTier} scrolls.<br>Buy from the <strong>🛒 Shop</strong>.</div>`}
-          <button class="btn btn-ghost gacha-close-btn" id="gacha-close-2">Close</button>
+            : `<div class="gacha-no-scrolls">No more ${scrollTier} scrolls — buy more from the <strong>🛒 Shop</strong>.</div>`}
+          <button class="btn btn-ghost gacha-close-btn gacha-close-link" id="gacha-close-2">Close</button>
         </div>
         ${historyHtml}
       </div>`;
@@ -243,18 +258,24 @@ export class GachaUI {
       const subName = r.heroId
         ? (HEROES_CONFIG[r.heroId]?.name ?? r.heroId)
         : (r.itemId ? (INVENTORY_ITEMS[r.itemId]?.name ?? r.itemId) : '');
+      const tierClass = r.outcome === 'hero' || r.outcome === 'fragment'
+        ? `gacha-history-row--${HEROES_CONFIG[r.heroId]?.tier ?? 'common'}`
+        : `gacha-history-row--${r.outcome}`;
       return `
-        <div class="gacha-history-row ${i === 0 ? 'gacha-history-row--latest' : ''}">
+        <div class="gacha-history-row ${i === 0 ? 'gacha-history-row--latest' : ''} ${tierClass}">
+          <span class="gacha-history-dot"></span>
           <span class="gacha-history-icon">${meta.icon}</span>
-          <span class="gacha-history-label">${meta.label}</span>
-          ${subName ? `<span class="gacha-history-sub">${subName}${r.isDuplicate ? ' (Dupe)' : ''}</span>` : ''}
+          <div class="gacha-history-text">
+            <span class="gacha-history-label">${meta.label}</span>
+            ${subName ? `<span class="gacha-history-sub">${subName}${r.isDuplicate ? ' (Dupe)' : ''}</span>` : ''}
+          </div>
         </div>`;
     }).join('');
 
     return `
       <div class="gacha-history">
-        <div class="gacha-history-title">📋 Recent Rolls</div>
-        ${rows}
+        <div class="gacha-history-title">📋 Session Rolls (${this._history.length})</div>
+        <div class="gacha-history-list">${rows}</div>
       </div>`;
   }
 
@@ -262,8 +283,10 @@ export class GachaUI {
     return `
       <div class="gacha-panel">
         <div class="gacha-header">
-          <h2 class="gacha-title">⚠️ Error</h2>
-          <button class="btn btn-sm btn-ghost gacha-close-btn" id="gacha-close">✕</button>
+          <div class="gacha-header-left">
+            <h2 class="gacha-title">⚠️ Error</h2>
+          </div>
+          <button class="gacha-close-x gacha-close-btn" id="gacha-close">✕</button>
         </div>
         <div class="gacha-stage">
           <div class="gacha-error-msg">${msg}</div>
@@ -276,7 +299,7 @@ export class GachaUI {
   // ─────────────────────────────────────────────────────────────────────────
 
   _bindResultListeners(scrollTier) {
-    this._modal?.querySelectorAll('.gacha-close-btn').forEach(btn => {
+    this._modal?.querySelectorAll('.gacha-close-btn, .gacha-close-x').forEach(btn => {
       btn.addEventListener('click', () => { eventBus.emit('ui:click'); this._close(); });
     });
 

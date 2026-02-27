@@ -8,7 +8,7 @@
  */
 import { eventBus }         from '../../core/EventBus.js';
 import { RES_META, fmt }    from '../uiUtils.js';
-import { BUILDINGS_CONFIG, HEROES_CONFIG } from '../../entities/GAME_DATA.js';
+import { BUILDINGS_CONFIG, HEROES_CONFIG, HQ_UNLOCK_TABLE, UNITS_CONFIG, TECH_CONFIG, INVENTORY_ITEMS } from '../../entities/GAME_DATA.js';
 
 export class BuildingsUI {
   /** @param {{ rm, bm, notifications, heroes }} systems */
@@ -25,11 +25,12 @@ export class BuildingsUI {
 
   init() {
     eventBus.on('ui:viewChanged',        v => { if (v === 'base') this.render(); });
-    eventBus.on('building:completed',    () => this.render());
-    eventBus.on('building:started',      () => this.render());
-    eventBus.on('building:queueUpdated', () => this.render());
-    eventBus.on('tech:researched',       () => this.render());
-    eventBus.on('heroes:updated',        () => this.render());
+    eventBus.on('building:completed',        () => this.render());
+    eventBus.on('building:started',          () => this.render());
+    eventBus.on('building:queueUpdated',     () => this.render());
+    eventBus.on('building:automationEnabled',() => this.render());
+    eventBus.on('tech:researched',           () => this.render());
+    eventBus.on('heroes:updated',            () => this.render());
   }
 
   // ─────────────────────────────────────────────
@@ -98,20 +99,28 @@ export class BuildingsUI {
             </div>
             <button class="bq-cancel" data-queueindex="0" title="Cancel &amp; refund">✕</button>
           </div>
-          <div class="progress-container bq-progress" data-timer-start="${startedAt}" data-timer-end="${endsAt}">
-            <div class="progress-label bq-progress-label">
-              <span>Building…</span>
-              <span class="progress-time-label">${secsLeft}s</span>
+          <div class="bq-speedup-row">
+            <div class="progress-container bq-progress" data-timer-start="${startedAt}" data-timer-end="${endsAt}">
+              <div class="progress-label bq-progress-label">
+                <span>Building…</span>
+                <span class="progress-time-label">${secsLeft}s</span>
+              </div>
+              <div class="progress-bar bq-bar">
+                <div class="progress-fill progress-fill-primary" style="width:${pct}%"></div>
+              </div>
             </div>
-            <div class="progress-bar bq-bar">
-              <div class="progress-fill progress-fill-primary" style="width:${pct}%"></div>
-            </div>
+            <button class="btn btn-xs btn-warning bq-speed-btn" title="Speed Up">⏩</button>
           </div>`;
         el.querySelector('.bq-cancel')?.addEventListener('click', e => {
           e.stopPropagation();
           eventBus.emit('ui:click');
           const r = bm.cancelBuild(0);
           if (!r.success) this._s.notifications?.show('warning', 'Cannot Cancel', r.reason);
+        });
+        el.querySelector('.bq-speed-btn')?.addEventListener('click', e => {
+          e.stopPropagation();
+          eventBus.emit('ui:click');
+          this._openSpeedupPicker(el, 'building', secsLeft);
         });
         items.appendChild(el);
 
@@ -165,11 +174,10 @@ export class BuildingsUI {
     const snap = this._s.rm.getSnapshot();
 
     const CATEGORIES = [
-      { id: 'core',     label: 'Core',     icon: '🏛️' },
-      { id: 'economy',  label: 'Economy',  icon: '💰' },
-      { id: 'military', label: 'Military', icon: '⚔️' },
-      { id: 'magic',    label: 'Magic',    icon: '🔮' },
-      { id: 'research', label: 'Research', icon: '🔬' },
+      { id: 'core',       label: 'Core',       icon: '🏛️' },
+      { id: 'production', label: 'Production', icon: '⚒️' },
+      { id: 'population', label: 'Population', icon: '👥' },
+      { id: 'military',   label: 'Military',   icon: '⚔️' },
     ];
 
     const allTypes   = this._s.bm.getBuildingTypesWithInstances();
@@ -223,11 +231,12 @@ export class BuildingsUI {
         const builtCount = bType.instances.filter(i => i.level > 0).length;
 
         const btn = document.createElement('button');
-        btn.className = `bc-type-tab${this._activeType === bType.id ? ' active' : ''}`;
+        btn.className = `bc-type-tab${this._activeType === bType.id ? ' active' : ''}${bType.isHQLocked ? ' bc-type-tab-locked' : ''}`;
         btn.innerHTML = `
           <span class="bc-type-icon">${bType.icon}</span>
           <span>${bType.name}</span>
-          ${isBuilding ? '<span class="bc-pip bc-pip-building"></span>'
+          ${bType.isHQLocked ? `<span class="bc-type-lock">🔒</span>`
+            : isBuilding ? '<span class="bc-pip bc-pip-building"></span>'
             : hasBuilt ? `<span class="bc-type-count">${builtCount}</span>` : ''}`;
         btn.addEventListener('click', () => {
           this._activeType = bType.id;
@@ -245,12 +254,17 @@ export class BuildingsUI {
     const grid = document.createElement('div');
     grid.className = 'buildings-grid';
 
-    const multiInst = bType.totalSlots > 1;
-    for (const inst of bType.instances) {
-      grid.appendChild(this._buildCard(inst, snap, multiInst));
-    }
-    for (const slot of bType.lockedSlots) {
-      grid.appendChild(this._buildLockedSlotCard(bType, slot));
+    // HQ-locked building type — show a single locked card
+    if (bType.isHQLocked) {
+      grid.appendChild(this._buildHQLockedCard(bType));
+    } else {
+      const multiInst = bType.totalSlots > 1;
+      for (const inst of bType.instances) {
+        grid.appendChild(this._buildCard(inst, snap, multiInst));
+      }
+      for (const slot of bType.lockedSlots) {
+        grid.appendChild(this._buildLockedSlotCard(bType, slot));
+      }
     }
 
     container.appendChild(grid);
@@ -315,11 +329,75 @@ export class BuildingsUI {
         <div class="progress-bar"><div class="progress-fill progress-fill-primary" style="width:${pct}%"></div></div>
       </div>` : '';
 
-    const effectLabelHtml = b.effectLabel
-      ? `<div class="building-effect-label">${b.effectLabel}</div>` : '';
+    const effectLabelHtml = (() => {
+      const isMaxed_ = b.isMaxLevel;
+      // Production buildings: show current → next rate delta
+      const numericEffects = Object.entries(b.effects ?? {}).filter(([, v]) => typeof v === 'number');
+      if (numericEffects.length > 0 && b.level > 0) {
+        const parts = numericEffects.map(([res, rate]) => {
+          const icon = RES_META[res]?.icon ?? res;
+          const cur  = +(rate * b.level).toFixed(1);
+          if (isMaxed_) return `${icon} ${cur}/s`;
+          const nxt  = +(rate * (b.level + 1)).toFixed(1);
+          return `${icon} ${cur}/s → ${nxt}/s`;
+        });
+        return `<div class="building-effect-label">${parts.join(' · ')}</div>`;
+      }
+      // Storage buildings: show current → next cap delta
+      if (b.storageCap && b.level > 0) {
+        const parts = Object.entries(b.storageCap).map(([res, capPerLv]) => {
+          const icon = RES_META[res]?.icon ?? res;
+          const cur  = fmt(capPerLv * b.level);
+          if (isMaxed_) return `${icon} +${cur}`;
+          const nxt  = fmt(capPerLv * (b.level + 1));
+          return `${icon} +${cur} → +${nxt}`;
+        });
+        return `<div class="building-effect-label">📦 ${parts.join(' · ')}</div>`;
+      }
+      // Fallback: static label from config
+      return b.effectLabel ? `<div class="building-effect-label">${b.effectLabel}</div>` : '';
+    })();
+
+    const autoRestockActive = b.id === 'cafeteria' && (this._s.bm?.getAutomations()?.cafeteriaRestock === true);
+    const automationBadge   = autoRestockActive
+      ? `<div class="cafeteria-auto-badge">🤖 Auto-restock active</div>` : '';
+
+    const cafeteriaStockHtml = (b.id === 'cafeteria' && b.level > 0) ? (() => {
+      const stockCap = 200 * b.level;
+      const food  = Math.floor(b.stock?.food  ?? 0);
+      const water = Math.floor(b.stock?.water ?? 0);
+      const depletionStr = (() => {
+        if (!b.drainRatePerSec) return '♾️ No consumption';
+        if (!isFinite(b.depletionSec)) return '♾️ Stocked';
+        const s = Math.max(0, Math.floor(b.depletionSec));
+        if (s < 60) return `⏱️ ~${s}s until empty`;
+        const m = Math.floor(s / 60), r = s % 60;
+        return `⏱️ ~${m}m ${r}s until empty`;
+      })();
+      return `<div class="cafeteria-stock">
+        <div class="cafeteria-stock-row"><span>🌾 Food stock</span><span>${food} / ${stockCap}</span></div>
+        <div class="cafeteria-stock-row"><span>💧 Water stock</span><span>${water} / ${stockCap}</span></div>
+        <div class="cafeteria-stock-row cafeteria-depletion"><span>${depletionStr}</span></div>
+      </div>`;
+    })() : '';
 
     const queueBadgeHtml = b.queuedCount > 0 && !b.isActivelyBuilding
       ? `<span class="build-queue-badge">🏗️ ×${b.queuedCount} queued</span>` : '';
+
+    // HQ preview: show what the next level unlocks on the townhall card
+    const hqPreviewHtml = b.id === 'townhall' ? this._buildHQPreview() : '';
+
+    // HQ current benefits on townhall card
+    const hqBenefitsHtml = (b.id === 'townhall' && b.level > 0) ? (() => {
+      const ben = this._s.bm.getHQBenefits();
+      const parts = [];
+      if (ben.productionBonus > 0) parts.push(`⚒️ +${Math.round(ben.productionBonus * 100)}% Production`);
+      if (ben.attackBonus > 0)     parts.push(`⚔️ +${Math.round(ben.attackBonus * 100)}% ATK`);
+      if (ben.defenseBonus > 0)    parts.push(`🛡️ +${Math.round(ben.defenseBonus * 100)}% DEF`);
+      if (ben.storageBonus > 0)    parts.push(`📦 +${Math.round(ben.storageBonus * 100)}% Storage`);
+      if (parts.length === 0) return '';
+      return `<div class="hq-benefits"><span class="hq-benefits-title">Active HQ Bonuses:</span> ${parts.join(' · ')}</div>`;
+    })() : '';
 
     const instLabel = (showInstanceLabel && b.instanceIndex >= 0)
       ? ` <span class="instance-label">#${b.instanceIndex + 1}</span>` : '';
@@ -331,6 +409,9 @@ export class BuildingsUI {
     const isMaxed  = b.isMaxLevel;
     const reqText  = b.requirementsReason ?? '';
     const nextLv   = b.effectiveLevel + 1;
+
+    const timeHint = !isMaxed && !b.isActivelyBuilding && b.nextLevelBuildTime
+      ? `<span class="tech-time-hint">⏱ ${fmt(b.nextLevelBuildTime)}s</span>` : '';
 
     let btnText, btnCls, btnDisabled;
     if (!b.requirementsMet)  { btnText = `🔒 ${reqText}`;                             btnCls = 'btn-ghost'; btnDisabled = true;  }
@@ -352,12 +433,18 @@ export class BuildingsUI {
       <div class="card-body">
         <div class="cost-row">${costHtml}</div>
         ${effectLabelHtml}
+        ${cafeteriaStockHtml}
+        ${automationBadge}
         ${queueBadgeHtml}
+        ${hqBenefitsHtml}
+        ${hqPreviewHtml}
       </div>
       ${heroStationHtml}
       ${progressHtml}
       <div class="card-footer">
         <button class="btn btn-sm ${btnCls} btn-build" ${btnDisabled ? 'disabled' : ''}>${btnText}</button>
+        ${timeHint}
+        ${b.id === 'cafeteria' && b.level > 0 ? `<button class="btn btn-sm btn-primary btn-restock-cafeteria" data-instance="${b.instanceId}" data-cap="${200 * b.level}">🔄 Restock</button>` : ''}
         ${b.level > 0 && !b.isActivelyBuilding ? `<span style="font-size:var(--text-xs);color:var(--clr-text-muted)">Lv.${b.level}/${b.maxLevel}</span>` : ''}
       </div>`;
 
@@ -367,6 +454,20 @@ export class BuildingsUI {
       if (!r.success) {
         eventBus.emit('ui:error');
         this._s.notifications?.show('warning', 'Cannot Build', r.reason);
+      }
+      this.render();
+    });
+
+    card.querySelector('.btn-restock-cafeteria')?.addEventListener('click', e => {
+      eventBus.emit('ui:click');
+      const instanceId = e.currentTarget.dataset.instance;
+      const cap = Number(e.currentTarget.dataset.cap);
+      const r = this._s.bm.restockCafeteria(instanceId, cap, cap);
+      if (!r.success) {
+        eventBus.emit('ui:error');
+        this._s.notifications?.show('warning', 'Cannot Restock', r.reason);
+      } else {
+        this._s.notifications?.show('success', '🍽️ Restocked', 'Cafeteria refilled from global supply.');
       }
       this.render();
     });
@@ -420,6 +521,140 @@ export class BuildingsUI {
         ${condText ? `<div class="locked-slot-req">Requires: ${condText}</div>` : ''}
       </div>`;
     return card;
+  }
+
+  /** Build a card for a building type that is locked behind an HQ level. */
+  _buildHQLockedCard(bType) {
+    const card = document.createElement('div');
+    card.className = 'card building-card building-card-locked';
+    card.innerHTML = `
+      <div class="card-header" style="opacity:0.45">
+        <div class="card-icon">${bType.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div class="card-title">${bType.name}</div>
+          <div class="card-subtitle">${bType.description}</div>
+        </div>
+      </div>
+      <div class="card-body locked-slot-body">
+        <div class="locked-slot-icon">🔒</div>
+        <div class="locked-slot-req">Requires HQ Lv.${bType.hqRequiredLevel}</div>
+        ${bType.effectLabel ? `<div class="building-effect-label" style="opacity:0.5;margin-top:6px">${bType.effectLabel}</div>` : ''}
+      </div>`;
+    return card;
+  }
+
+  /**
+   * Build an HTML string previewing what the next HQ level unlocks.
+   * Shown inside the townhall building card.
+   */
+  _buildHQPreview() {
+    const hqLv = this._s.bm.getHQLevel();
+    const nextLv = hqLv + 1;
+    const entry  = HQ_UNLOCK_TABLE[nextLv];
+    if (!entry) return '';
+
+    const parts = [];
+
+    if (entry.buildings.length > 0) {
+      const names = entry.buildings.map(id => BUILDINGS_CONFIG[id]?.name ?? id).join(', ');
+      parts.push(`<div class="hq-preview-row">🏗️ <strong>Buildings:</strong> ${names}</div>`);
+    }
+    if (entry.units.length > 0) {
+      const names = entry.units.map(id => UNITS_CONFIG[id]?.name ?? id).join(', ');
+      parts.push(`<div class="hq-preview-row">⚔️ <strong>Units:</strong> ${names}</div>`);
+    }
+    if (entry.techs.length > 0) {
+      const names = entry.techs.map(id => TECH_CONFIG[id]?.name ?? id).join(', ');
+      parts.push(`<div class="hq-preview-row">🔬 <strong>Techs:</strong> ${names}</div>`);
+    }
+
+    const b = entry.benefits;
+    const bonusParts = [];
+    if (b.productionBonus > 0) bonusParts.push(`+${Math.round(b.productionBonus * 100)}% Production`);
+    if (b.attackBonus > 0)     bonusParts.push(`+${Math.round(b.attackBonus * 100)}% ATK`);
+    if (b.defenseBonus > 0)    bonusParts.push(`+${Math.round(b.defenseBonus * 100)}% DEF`);
+    if (b.storageBonus > 0)    bonusParts.push(`+${Math.round(b.storageBonus * 100)}% Storage`);
+    if (bonusParts.length > 0) {
+      parts.push(`<div class="hq-preview-row">📈 <strong>Bonuses:</strong> ${bonusParts.join(', ')}</div>`);
+    }
+
+    if (parts.length === 0) return '';
+    return `<div class="hq-preview"><div class="hq-preview-title">🔓 HQ Lv.${nextLv} Unlocks:</div>${parts.join('')}</div>`;
+  }
+
+  // ─────────────────────────────────────────────
+  // Speed-Up Picker (shared pattern)
+  // ─────────────────────────────────────────────
+
+  _openSpeedupPicker(anchorEl, queueType, secsLeft) {
+    // Remove any existing picker
+    document.querySelector('.speedup-picker')?.remove();
+
+    const inventory = this._s.inventory;
+    if (!inventory) return;
+
+    const owned = inventory.getOwnedItems().filter(i =>
+      i.type === 'speed_boost' && (i.target === queueType || i.target === 'any')
+    );
+
+    const picker = document.createElement('div');
+    picker.className = 'speedup-picker';
+
+    if (owned.length === 0) {
+      picker.innerHTML = `
+        <div class="speedup-picker-empty">
+          <span>No speedups available.</span>
+          <button class="btn btn-xs btn-primary speedup-goto-shop">🛒 Buy from Shop</button>
+        </div>`;
+      picker.querySelector('.speedup-goto-shop')?.addEventListener('click', () => {
+        picker.remove();
+        eventBus.emit('ui:navigateTo', 'shop');
+      });
+    } else {
+      // Find recommended: smallest skipSeconds that covers remaining time, or largest available
+      const sorted = [...owned].sort((a, b) => a.skipSeconds - b.skipSeconds);
+      const recommended = sorted.find(i => i.skipSeconds >= secsLeft) ?? sorted[sorted.length - 1];
+
+      picker.innerHTML = `
+        <div class="speedup-picker-title">⏩ Speed Up</div>
+        ${sorted.map(item => {
+          const isRec = item.id === recommended.id;
+          const label = item.skipSeconds >= 999999 ? 'Instant'
+            : item.skipSeconds >= 3600 ? `${Math.round(item.skipSeconds / 3600)}h`
+            : `${Math.round(item.skipSeconds / 60)}m`;
+          const typeTag = item.target === 'any' ? ' (Universal)' : '';
+          return `
+            <button class="speedup-option${isRec ? ' speedup-recommended' : ''}" data-item="${item.id}">
+              <span class="speedup-option-icon">${item.icon}</span>
+              <span class="speedup-option-label">${label}${typeTag}</span>
+              <span class="speedup-option-qty">×${item.quantity}</span>
+              ${isRec ? '<span class="speedup-rec-badge">⭐ Best</span>' : ''}
+            </button>`;
+        }).join('')}`;
+
+      picker.querySelectorAll('.speedup-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const itemId = btn.dataset.item;
+          const r = inventory.useItem(itemId, { queueType });
+          picker.remove();
+          if (!r.success) {
+            this._s.notifications?.show('warning', 'Cannot Speed Up', r.reason);
+          } else {
+            const remaining = r.completed ? 'Done!' : `${Math.ceil((r.remaining ?? 0) / 1000)}s left`;
+            this._s.notifications?.show('success', '⏩ Sped Up!', remaining);
+          }
+        });
+      });
+    }
+
+    // Close on outside click
+    const closeHandler = (e) => {
+      if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('pointerdown', closeHandler, true); }
+    };
+    setTimeout(() => document.addEventListener('pointerdown', closeHandler, true), 0);
+
+    anchorEl.style.position = 'relative';
+    anchorEl.appendChild(picker);
   }
 }
 

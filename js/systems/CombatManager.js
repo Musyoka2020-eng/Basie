@@ -44,7 +44,7 @@ export class CombatManager {
 
     eventBus.emit('combat:started', { monsterId, monster });
 
-    const result = this._simulateBattle(army, monster, modifier);
+    const result = this._simulateBattle(army, monster, modifier, squadId);
 
     // Determine if this win still yields full rewards
     const victoryCount = this._victoryCounts[monsterId] ?? 0;
@@ -86,7 +86,7 @@ export class CombatManager {
       this._victoryCounts[monsterId] = victoryCount + 1;
       this._rm.add(rewards);
       this._user.addXP(rewards.xp ?? 0);
-      this._hm?.awardBattleXP(Math.floor((monster.rewards.xp ?? 100) * 0.5));
+      this._hm?.awardBattleXP(Math.floor((monster.rewards.xp ?? 100) * 0.5), squadId);
       eventBus.emit('combat:victory', { monsterId, rewards, losses: result.losses, reducedReward: isReduced });
     } else {
       eventBus.emit('combat:defeat', { monsterId, losses: result.losses });
@@ -96,8 +96,8 @@ export class CombatManager {
     return { success: true, result, rewards, reducedReward: isReduced, modifier };
   }
 
-_simulateBattle(army, monster, modifier = null) {
-    const heroBonus = this._hm?.getCombatBonuses() ?? { attackMult: 1, defenseMult: 1, lossReduction: 0 };
+_simulateBattle(army, monster, modifier = null, squadId = null) {
+    const heroBonus = this._hm?.getCombatBonuses(squadId) ?? { attackMult: 1, defenseMult: 1, lossReduction: 0 };
     const tech = this._techBonuses || {};
 
     let playerTotalAttack  = 0;
@@ -105,13 +105,15 @@ _simulateBattle(army, monster, modifier = null) {
     let playerTotalHP      = 0;
 
     for (const unit of army) {
-      const stats = UNITS_CONFIG[unit.unitId]?.stats ?? { attack: 10, defense: 5, hp: 100 };
+      // Resolve stats from tier config if available, fall back to top-level stats for legacy data
+      const baseCfg = UNITS_CONFIG[unit.unitId] ?? {};
+      const tier    = unit.tier ?? 1;
+      const tierCfg = baseCfg.tiers?.[tier - 1];
+      const stats   = tierCfg?.stats ?? baseCfg.stats ?? { attack: 10, defense: 5, hp: 100 };
 
-      let uAttack = stats.attack * (1 + (tech.attackBonus || 0));
-      if (unit.unitId === 'mage' && tech.mageAttackBonus) uAttack *= (1 + tech.mageAttackBonus);
-
+      let uAttack  = stats.attack  * (1 + (tech.attackBonus  || 0));
       let uDefense = stats.defense + (tech.defenseBonus || 0);
-      let uHp = stats.hp * (1 + (tech.hpBonus || 0));
+      let uHp      = stats.hp      * (1 + (tech.hpBonus      || 0));
 
       playerTotalAttack  += uAttack  * unit.count;
       playerTotalDefense += uDefense * unit.count;
@@ -121,6 +123,13 @@ _simulateBattle(army, monster, modifier = null) {
     playerTotalAttack  *= heroBonus.attackMult;
     playerTotalDefense *= heroBonus.defenseMult;
 
+    // Apply HQ-level combat bonuses
+    if (this._bm) {
+      const hqBenefits = this._bm.getHQBenefits();
+      if (hqBenefits.attackBonus > 0)  playerTotalAttack  *= (1 + hqBenefits.attackBonus);
+      if (hqBenefits.defenseBonus > 0) playerTotalDefense *= (1 + hqBenefits.defenseBonus);
+    }
+
     // Apply modifier player-side multipliers
     if (modifier?.playerAttackMult) playerTotalAttack *= modifier.playerAttackMult;
     if (modifier?.playerHpMult)     playerTotalHP     *= modifier.playerHpMult;
@@ -129,6 +138,21 @@ _simulateBattle(army, monster, modifier = null) {
     const waves = modifier?.waveTransform
       ? monster.waves.map(modifier.waveTransform)
       : monster.waves;
+
+    // ── Active hero skills (battle_start triggers) ──────────────────────
+    const activeSkills = heroBonus.activeSkills ?? [];
+    let skillAttackBonus  = 0;   // additive multiplier for first wave attack
+    let skillDefenseBonus = 0;   // additive multiplier for first wave defense
+    let skillEvasion      = false; // if true, player takes no damage in first wave
+    for (const { skill } of activeSkills) {
+      if (skill.effect?.trigger !== 'battle_start') continue;
+      if (skill.effect.attackBonus)  skillAttackBonus  += skill.effect.attackBonus;
+      if (skill.effect.defenseBonus) skillDefenseBonus += skill.effect.defenseBonus;
+      if (skill.effect.evasion)      skillEvasion       = true;
+    }
+
+    // Post-battle heal from passive skills (e.g. consecration's postBattleHeal)
+    const postBattleHeal = heroBonus.postBattleHeal ?? 0;
 
     let remainingPlayerHP = playerTotalHP;
     let wavesSurvived = 0;
@@ -155,10 +179,22 @@ _simulateBattle(army, monster, modifier = null) {
       }
 
       const isFirstWave = (wavesSurvived === 0);
-      const currentAttack = isFirstWave ? playerTotalAttack * (1 + (tech.firstWaveBonus || 0)) : playerTotalAttack;
+
+      // Apply active hero skill bonuses on first wave
+      let currentAttack  = playerTotalAttack;
+      let currentDmg     = dmgToPlayer;
+      if (isFirstWave) {
+        currentAttack *= (1 + (tech.firstWaveBonus || 0) + skillAttackBonus);
+        // Shadowstep evasion: no damage taken in wave 1
+        if (skillEvasion) currentDmg = 0;
+        // Divine Shield: reduce incoming damage by defenseBonus
+        if (skillDefenseBonus > 0) currentDmg *= (1 - skillDefenseBonus);
+      } else {
+        currentAttack *= 1; // no bonus after first wave
+      }
 
       const waveKillRounds = Math.ceil(waveHP / Math.max(1, currentAttack));
-      const totalDmgTaken  = dmgToPlayer * waveKillRounds * 0.3;
+      const totalDmgTaken  = currentDmg * waveKillRounds * 0.3;
 
       remainingPlayerHP = Math.max(0, remainingPlayerHP - totalDmgTaken);
       wavesSurvived++;
@@ -202,8 +238,20 @@ _simulateBattle(army, monster, modifier = null) {
 
     const losses = {};
     for (const unit of army) {
-      const lost = Math.round(unit.count * baseLossRate);
-      if (lost > 0) losses[unit.unitId] = Math.min(lost, unit.count);
+      const lossKey = unit.tierKey ?? unit.unitId; // prefer tierKey ('infantry_t1'), fall back for legacy
+      const lost    = Math.round(unit.count * baseLossRate);
+      if (lost > 0) losses[lossKey] = Math.min(lost, unit.count);
+    }
+
+    // Post-battle heal: consecration restores a fraction of lost units
+    if (victory && postBattleHeal > 0) {
+      for (const [lossKey, lostCount] of Object.entries(losses)) {
+        const restored = Math.floor(lostCount * postBattleHeal);
+        if (restored > 0) {
+          losses[lossKey] = Math.max(0, lostCount - restored);
+          if (losses[lossKey] === 0) delete losses[lossKey];
+        }
+      }
     }
 
     return { victory, losses, wavesSurvived, waveDetails, survivalRate, initialPlayerHP: playerTotalHP };

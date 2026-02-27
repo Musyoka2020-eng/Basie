@@ -24,6 +24,15 @@ const FIREBASE_CONFIG = {
   messagingSenderId: undefined,
   appId:             undefined,
 };
+// const firebaseConfig = {
+//     apiKey: "AIzaSyCzwmBuBjI8SDl8Moqc4fBRktBvQxfqYb0",
+//     authDomain: "basie-c6871.firebaseapp.com",
+//     projectId: "basie-c6871",
+//     storageBucket: "basie-c6871.firebasestorage.app",
+//     messagingSenderId: "420652199939",
+//     appId: "1:420652199939:web:516aee946dbf3f64cf5e36",
+//     measurementId: "G-CS1GC96FCK"
+//   };
 
 const IS_CONFIGURED = Object.values(FIREBASE_CONFIG).every(v => v !== undefined);
 

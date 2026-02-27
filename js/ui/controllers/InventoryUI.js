@@ -22,13 +22,14 @@ const RARITY_META = {
 };
 
 const TYPE_GROUPS = [
-  { type: 'recruitment_scroll', label: '🎲 Recruitment Scrolls' },
-  { type: 'hero_card',          label: '🃏 Hero Cards' },
+  { type: 'speed_boost',         label: '⏩ Speed Boosts' },
+  { type: 'resource_bundle',     label: '📦 Resource Bundles' },
+  { type: 'buff',                label: '⚗️ Buffs' },
+  { type: 'xp_bundle',           label: '📖 XP Bundles' },
+  { type: 'recruitment_scroll',  label: '🎲 Recruitment Scrolls' },
+  { type: 'hero_card',           label: '🃏 Hero Cards' },
   { type: 'hero_card_universal', label: '🎴 Universal Hero Cards' },
-  { type: 'hero_fragment',      label: '🔮 Hero Fragments' },
-  { type: 'xp_bundle',          label: '📖 XP Bundles' },
-  { type: 'resource_bundle',    label: '📦 Resource Bundles' },
-  { type: 'buff',               label: '⚗️ Buffs' },
+  { type: 'hero_fragment',       label: '🔮 Hero Fragments' },
 ];
 
 export class InventoryUI {
@@ -99,25 +100,38 @@ export class InventoryUI {
           <div class="inv-empty-sub">Buy items from the <strong>🛒 Shop</strong> tab.</div>
         </div>`;
     } else {
-      for (const group of groups) {
-        bodyHtml += `<div class="inv-group"><div class="inv-group-label">${group.label}</div>`;
+      for (let gi = 0; gi < groups.length; gi++) {
+        const group    = groups[gi];
+        const isFirst  = gi === 0;
+        const totalQty = group.items.reduce((s, i) => s + i.quantity, 0);
+        bodyHtml += `
+          <div class="inv-group">
+            <button class="inv-group-hdr${isFirst ? '' : ' collapsed'}" aria-expanded="${isFirst ? 'true' : 'false'}">
+              <span class="inv-group-label-text">${group.label}</span>
+              <span class="inv-group-count">×${totalQty}</span>
+              <span class="inv-group-chevron">▾</span>
+            </button>
+            <div class="inv-cards-wrap${isFirst ? '' : ' hidden'}">`;
         for (const item of group.items) {
-          const rarityM = RARITY_META[item.rarity] ?? {};
+          const rarityM    = RARITY_META[item.rarity] ?? {};
           const rarityHtml = rarityM.label
-            ? `<span class="inv-item-rarity" style="color:${rarityM.color}">${rarityM.label}</span>`
+            ? `<div class="inv-card-rarity" style="color:${rarityM.color}">${rarityM.label}</div>`
             : '';
           bodyHtml += `
-            <div class="inv-item-row" data-item-id="${item.id}">
-              <div class="inv-icon-wrap">${item.icon}</div>
-              <div class="inv-item-details">
-                <div class="inv-item-name">${item.name}</div>
-                ${rarityHtml}
+            <div class="inv-card" data-item-id="${item.id}">
+              <div class="inv-card-top">
+                <span class="inv-card-icon">${item.icon}</span>
+                <div class="inv-card-info">
+                  <div class="inv-card-name">${item.name}</div>
+                  ${rarityHtml}
+                </div>
+                <span class="inv-card-qty">×${item.quantity}</span>
               </div>
-              <div class="inv-qty-badge">×${item.quantity}</div>
-              <div class="inv-action-cell">${this._buildActionHtml(item, ownedHeroIds)}</div>
+              ${item.description ? `<div class="inv-card-desc">${item.description}</div>` : ''}
+              <div class="inv-card-action">${this._buildActionHtml(item, ownedHeroIds)}</div>
             </div>`;
         }
-        bodyHtml += `</div>`;
+        bodyHtml += `</div></div>`;
       }
     }
 
@@ -187,7 +201,10 @@ export class InventoryUI {
     if (item.type === 'buff') {
       return `<button class="btn btn-xs btn-primary inv-use-buff" data-item="${item.id}">Activate</button>`;
     }
-
+    // ── Speed Boosts ─────────────────────────────────────────────────────────
+    if (item.type === 'speed_boost') {
+      return `<span class="inv-speed-hint">Use from queue ⏩</span>`;
+    }
     return '';
   }
 
@@ -199,6 +216,16 @@ export class InventoryUI {
     panel.querySelector('#inv-panel-close')?.addEventListener('click', () => {
       eventBus.emit('ui:click');
       this._close();
+    });
+
+    // ── Collapse toggles ──────────────────────────────────────────────────
+    panel.querySelectorAll('.inv-group-hdr').forEach(hdr => {
+      hdr.addEventListener('click', () => {
+        const isOpen = hdr.getAttribute('aria-expanded') === 'true';
+        hdr.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+        hdr.classList.toggle('collapsed', isOpen);
+        hdr.nextElementSibling?.classList.toggle('hidden', isOpen);
+      });
     });
 
     // ── Recruitment Scrolls → open GachaUI ─────────────────────────────
@@ -266,8 +293,8 @@ export class InventoryUI {
       btn.addEventListener('click', e => {
         eventBus.emit('ui:click');
         const itemId = e.currentTarget.dataset.item;
-        const row    = e.currentTarget.closest('.inv-item-row');
-        this._showHeroPicker(itemId, row);
+        const card   = e.currentTarget.closest('.inv-card');
+        this._showHeroPicker(itemId, card);
       });
     });
 
