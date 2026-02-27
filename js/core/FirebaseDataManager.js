@@ -25,7 +25,6 @@ const FIREBASE_CONFIG = {
   appId:             undefined,
 };
 
-
 const IS_CONFIGURED = Object.values(FIREBASE_CONFIG).every(v => v !== undefined);
 
 // ─────────────────────────────────────────────
