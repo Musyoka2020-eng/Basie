@@ -30,6 +30,8 @@
   <link rel="stylesheet" href="css/components/inventory.css" />
   <link rel="stylesheet" href="css/components/gacha.css" />
   <link rel="stylesheet" href="css/components/heroes.css" />
+  <link rel="stylesheet" href="css/components/tutorial.css" />
+  <link rel="stylesheet" href="css/components/events.css" />
 </head>
 <body>
 
@@ -49,17 +51,7 @@
         <h1 class="auth-logo-title">BASIE</h1>
         <p class="auth-logo-sub">Command. Build. Conquer.</p>
       </div>
-      <div class="auth-tabs">
-        <button class="tab-btn active" id="auth-login-tab" data-tab="login">Login</button>
-        <button class="tab-btn" id="auth-register-tab" data-tab="register">Register</button>
-      </div>
       <form id="auth-form" class="auth-form" novalidate>
-        <div id="auth-register-fields" class="hidden">
-          <div class="form-group">
-            <label class="form-label" for="auth-username">Commander Name</label>
-            <input class="form-input" type="text" id="auth-username" placeholder="e.g. Lord Arcturus" autocomplete="username" />
-          </div>
-        </div>
         <div class="form-group">
           <label class="form-label" for="auth-email">Email</label>
           <input class="form-input" type="email" id="auth-email" placeholder="you@realm.com" autocomplete="email" />
@@ -192,6 +184,7 @@
             <span class="player-name" id="player-name">Commander</span>
             <span class="player-level" id="player-level">Lv. 1</span>
           </div>
+          <span class="vip-badge hidden" id="vip-badge" title=""></span>
         </div>
       </div>
     </header>
@@ -212,6 +205,7 @@
           <li><button class="nav-btn"         data-view="market"   id="nav-market"   aria-label="Market">🏪 <span>Market</span></button></li>
           <li><button class="nav-btn"         data-view="shop"       id="nav-shop"       aria-label="Shop">🛝 <span>Shop</span></button></li>
           <li><button class="nav-btn"         data-view="challenges" id="nav-challenges" aria-label="Challenges">🏆 <span>Challenges</span><span class="badge hidden" id="challenges-badge">0</span></button></li>
+          <li><button class="nav-btn"         data-view="events"     id="nav-events"     aria-label="Events">🎉 <span>Events</span><span class="badge hidden" id="events-badge">!</span></button></li>
         </ul>
       </nav>
 
@@ -255,6 +249,7 @@
                   <button class="btn btn-sm btn-primary" id="btn-create-squad">+ New</button>
                 </div>
                 <div class="squads-list" id="squads-list"></div>
+                <div class="barracks-squad-slots" id="barracks-squad-slots"></div>
               </div>
 
               <!-- Right: Squad Management Panel -->
@@ -367,6 +362,17 @@
           </div>
           <div id="challenges-list"></div>
         </section>
+
+        <!-- EVENTS VIEW -->
+        <section class="view hidden" id="view-events">
+          <div class="view-header">
+            <h2>🎉 Events</h2>
+            <p class="view-subtitle">Limited-time events with exclusive rewards</p>
+          </div>
+          <!-- Active-event banner injected here by EventsUI; hidden when no event is live -->
+          <div id="events-banner" class="events-banner hidden"></div>
+          <div id="events-list"></div>
+        </section>
       </main>
     </div>
 
@@ -393,6 +399,26 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Tutorial: 4 dark blockers that frame the spotlight target -->
+  <div id="tut-block-top"    class="tut-blocker hidden"></div>
+  <div id="tut-block-bottom" class="tut-blocker hidden"></div>
+  <div id="tut-block-left"   class="tut-blocker hidden"></div>
+  <div id="tut-block-right"  class="tut-blocker hidden"></div>
+  <!-- Floating spotlight ring — positioned by JS, immune to game DOM re-renders -->
+  <div id="tut-spotlight-ring" class="hidden"></div>
+  <!-- Tutorial tooltip — positioned dynamically near the spotlight -->
+  <div id="tutorial-tooltip" class="tutorial-tooltip hidden">
+    <div class="tutorial-step-counter">
+      <span id="tutorial-step-label">Step 1 of 7</span>
+      <div class="tutorial-step-dots" id="tutorial-step-dots"></div>
+    </div>
+    <div class="tutorial-title" id="tutorial-title"></div>
+    <p class="tutorial-instruction" id="tutorial-instruction"></p>
+    <div class="tutorial-actions">
+      <button class="btn btn-ghost btn-sm" id="btn-tutorial-skip">Skip Tutorial ×</button>
+    </div>
   </div>
 
   <!-- Story Modal -->

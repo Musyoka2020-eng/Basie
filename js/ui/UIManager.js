@@ -32,14 +32,16 @@ import { ShopUI }       from './controllers/ShopUI.js';
 import { GachaUI }      from './controllers/GachaUI.js';
 import { MilitaryUI }   from './controllers/MilitaryUI.js';
 import { ChallengesUI } from './controllers/ChallengesUI.js';
+import { EventsUI }     from './controllers/EventsUI.js';
 import { RES_META, openModal, closeModal } from './uiUtils.js';
 import { eventBus }     from '../core/EventBus.js';
 
 export class UIManager {
   constructor(systems) {
-    this.name = 'UIManager';
-    this._rm    = systems.rm;
-    this._story = systems.story ?? null;
+    this.name     = 'UIManager';
+    this._rm       = systems.rm;
+    this._story    = systems.story    ?? null;
+    this._tutorial = systems.tutorial ?? null;
 
     // Instantiate each controller with only its required systems
     this._navigation = new NavigationUI({
@@ -95,8 +97,10 @@ export class UIManager {
     this._shop = new ShopUI({
       rm:            systems.rm,
       bm:            systems.bm,
+      tech:          systems.tech,
       inventory:     systems.inventory,
       notifications: systems.notifications,
+      user:          systems.user,
     });
 
     this._gacha = new GachaUI({
@@ -108,6 +112,7 @@ export class UIManager {
     this._combat = new CombatUI({
       cm:            systems.cm,
       um:            systems.um,
+      user:          systems.user,
       notifications: systems.notifications,
       sound:         systems.sound,
     });
@@ -140,12 +145,23 @@ export class UIManager {
     });
 
     this._settings = new SettingsUI({
-      settings: systems.settings,
-      sound:    systems.sound,
+      settings:             systems.settings,
+      sound:                systems.sound,
+      user:                 systems.user,
+      achievements:         systems.achievements,
+      firebase:             systems.firebase,
+      saveManager:          systems.saveManager,
+      isFirebaseConfigured: systems.isFirebaseConfigured,
     });
 
     this._challenges = new ChallengesUI({
       challenges: systems.challenges,
+    });
+
+    this._events = new EventsUI({
+      events:        systems.events,
+      rm:            systems.rm,
+      notifications: systems.notifications,
     });
 
     this._init();
@@ -168,9 +184,47 @@ export class UIManager {
     this._shop.init();
     this._gacha.init();
     this._challenges.init();
-
-    // Story chapter modal
+    this._events.init();
     eventBus.on('story:chapter_triggered', chapter => this._showStoryModal(chapter));
+
+    // ── Tutorial overlay ────────────────────────────────────────────────
+    this._tutStep = null; // current active step — needed to re-pin ring after re-renders
+    eventBus.on('tutorial:stepAdvanced', d  => this._showTutorialStep(d.step, d.stepIndex, d.totalSteps));
+    eventBus.on('tutorial:complete',     () => this._hideTutorial());
+    // Re-pin the ring whenever BuildingsUI replaces its innerHTML
+    eventBus.on('buildings:rendered',    () => this._repositionRing());
+    document.getElementById('btn-tutorial-skip')?.addEventListener('click', () => {
+      eventBus.emit('ui:click');
+      this._tutorial?.skip();
+    });
+
+    // ── Group 4: Visual feedback animations ──────────────────────────────
+    // Card flash on queue completion (setTimeout lets controllers re-render first)
+    eventBus.on('building:completed', d => {
+      setTimeout(() => {
+        document.querySelectorAll(`[data-bid="${d?.id}"]`)
+          .forEach(el => this._flashCard(el));
+      }, 0);
+    });
+    eventBus.on('unit:trained', d => {
+      setTimeout(() => {
+        document.querySelectorAll(`[data-unit-id="${d?.tierKey}"]`)
+          .forEach(el => this._flashCard(el));
+      }, 0);
+    });
+    eventBus.on('tech:researched', d => {
+      setTimeout(() => {
+        document.querySelectorAll(`[data-tech-id="${d?.id}"]`)
+          .forEach(el => this._flashCard(el));
+      }, 0);
+    });
+
+    // Victory / defeat banner on the world map (after modal closes)
+    eventBus.on('combat:victory', () => this._showBattleBanner(false));
+    eventBus.on('combat:defeat',  () => this._showBattleBanner(true));
+
+    // XP float near the player level badge on level-up
+    eventBus.on('user:levelUp', () => this._spawnXpFloat());
 
     // Perform the full initial render
     this._buildings.render();
@@ -184,6 +238,63 @@ export class UIManager {
 
   /** No-op — UIManager is event-driven. Kept for GameEngine compatibility. */
   update(dt) {}
+
+  // ─────────────────────────────────────────────
+  // Group 4 animation helpers
+  // ─────────────────────────────────────────────
+
+  /** Briefly flash a card element with the cardFlash CSS animation. */
+  _flashCard(el) {
+    if (!el) return;
+    el.classList.remove('flash-complete'); // reset if already running
+    void el.offsetWidth;                  // force reflow to restart animation
+    el.classList.add('flash-complete');
+    el.addEventListener('animationend', () => el.classList.remove('flash-complete'), { once: true });
+  }
+
+  /** Show a small victory/defeat banner that auto-dismisses after 2.5 s. */
+  _showBattleBanner(isDefeat) {
+    const existing = document.querySelector('.victory-banner');
+    if (existing) existing.remove();
+
+    // Delay slightly so the battle modal finishes closing first
+    setTimeout(() => {
+      const banner = document.createElement('div');
+      banner.className = `victory-banner${isDefeat ? ' defeat' : ''}`;
+      banner.textContent = isDefeat ? '❌ Defeated!' : '⚔️ Victory!';
+      document.body.appendChild(banner);
+      setTimeout(() => banner.remove(), 2500);
+
+      // Shake the current available stage node on defeat
+      if (isDefeat) {
+        const availableNode = document.querySelector('.campaign-node.available');
+        if (availableNode) {
+          availableNode.classList.add('defeat-shake');
+          availableNode.addEventListener('animationend', () => availableNode.classList.remove('defeat-shake'), { once: true });
+        }
+      }
+    }, 400);
+  }
+
+  /** Spawn a "+LEVEL UP!" float near the player-level element in the header. */
+  _spawnXpFloat() {
+    const anchor = document.getElementById('player-level');
+    const span   = document.createElement('span');
+    span.className   = 'xp-float';
+    span.textContent = '▲ LEVEL UP!';
+
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect();
+      span.style.left = `${rect.left + rect.width / 2 - 32}px`;
+      span.style.top  = `${rect.top - 6}px`;
+    } else {
+      span.style.left = '50%';
+      span.style.top  = '60px';
+    }
+
+    document.body.appendChild(span);
+    span.addEventListener('animationend', () => span.remove(), { once: true });
+  }
 
   // ─────────────────────────────────────────────
   // Daily Login Modal
@@ -328,5 +439,137 @@ export class UIManager {
       if (this._rm && chapter.rewards) this._rm.add(chapter.rewards);
       overlay.classList.add('hidden');
     });
+  }
+
+  // ───────────────────────────────────────────────
+  // Tutorial overlay
+  // ───────────────────────────────────────────────
+
+  /**
+   * Show the tutorial spotlight for the given step.
+   * If the step has a buildingFocus, emits buildings:focusBuilding first and
+   * waits one render cycle before positioning the spotlight.
+   */
+  _showTutorialStep(step, stepIndex, totalSteps) {
+    this._tutStep = step; // store so _repositionRing() can re-find the target after re-renders
+    // Populate text content immediately
+    const titleEl = document.getElementById('tutorial-title');
+    const instrEl = document.getElementById('tutorial-instruction');
+    const labelEl = document.getElementById('tutorial-step-label');
+    const dotsEl  = document.getElementById('tutorial-step-dots');
+    if (titleEl) titleEl.textContent = step.title;
+    if (instrEl) instrEl.textContent = step.instruction;
+    if (labelEl) labelEl.textContent = `Step ${stepIndex + 1} of ${totalSteps}`;
+    if (dotsEl) {
+      dotsEl.innerHTML = Array.from({ length: totalSteps }, (_, i) => {
+        const cls = i < stepIndex ? 'done' : i === stepIndex ? 'active' : '';
+        return `<div class="tutorial-step-dot ${cls}"></div>`;
+      }).join('');
+    }
+
+    // Navigate to the correct view first so the building cards are in the DOM
+    if (step.navView) eventBus.emit('ui:navigateTo', step.navView);
+
+    // Switch the building sub-tab if needed
+    if (step.buildingFocus) eventBus.emit('buildings:focusBuilding', step.buildingFocus);
+
+    // 250 ms gives the view switch + BuildingsUI re-render time to complete
+    setTimeout(() => this._applySpotlight(step), 250);
+  }
+
+  /**
+   * Position the 4 blocker divs, floating ring, and tooltip around the target element.
+   * Falls back to nav-button pulse highlight if the selector finds nothing.
+   */
+  _applySpotlight(step) {
+    // Clear any previous fallback nav highlight
+    document.querySelectorAll('.tutorial-highlight')
+      .forEach(el => el.classList.remove('tutorial-highlight'));
+
+    const ring    = document.getElementById('tut-spotlight-ring');
+    const tooltip = document.getElementById('tutorial-tooltip');
+    const bTop    = document.getElementById('tut-block-top');
+    const bBot    = document.getElementById('tut-block-bottom');
+    const bLft    = document.getElementById('tut-block-left');
+    const bRgt    = document.getElementById('tut-block-right');
+    if (!tooltip) return;
+
+    const targetEl = step.highlightSelector
+      ? document.querySelector(step.highlightSelector)
+      : null;
+
+    if (targetEl) {
+      targetEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+      requestAnimationFrame(() => {
+        const pad  = 6;
+        const vw   = window.innerWidth;
+        const vh   = window.innerHeight;
+        const rect = targetEl.getBoundingClientRect();
+
+        // Floating ring (pointer-events:none — button underneath stays clickable)
+        if (ring) {
+          ring.classList.remove('hidden');
+          ring.style.cssText = `top:${rect.top - pad}px;left:${rect.left - pad}px;width:${rect.width + pad * 2}px;height:${rect.height + pad * 2}px`;
+        }
+
+        const x1 = Math.max(0, rect.left   - pad);
+        const y1 = Math.max(0, rect.top    - pad);
+        const x2 = Math.min(vw, rect.right  + pad);
+        const y2 = Math.min(vh, rect.bottom + pad);
+
+        if (bTop) { bTop.classList.remove('hidden'); bTop.style.cssText = `top:0;left:0;right:0;height:${y1}px`; }
+        if (bBot) { bBot.classList.remove('hidden'); bBot.style.cssText = `top:${y2}px;left:0;right:0;bottom:0`; }
+        if (bLft) { bLft.classList.remove('hidden'); bLft.style.cssText = `top:${y1}px;left:0;width:${x1}px;height:${y2 - y1}px`; }
+        if (bRgt) { bRgt.classList.remove('hidden'); bRgt.style.cssText = `top:${y1}px;left:${x2}px;right:0;height:${y2 - y1}px`; }
+
+        const tipW  = Math.min(420, vw - 32);
+        const tipH  = 160;
+        const tipX  = Math.max(8, Math.min(vw - tipW - 8, rect.left + rect.width / 2 - tipW / 2));
+        const below = y2 + 12 + tipH < vh;
+        const tipY  = below ? y2 + 12 : Math.max(8, y1 - tipH - 12);
+
+        tooltip.classList.remove('hidden');
+        tooltip.style.cssText = `left:${tipX}px;top:${tipY}px;width:${tipW}px`;
+      });
+    } else {
+      // Fallback: pulse the nav button, hide ring + blockers, float tooltip
+      if (ring) ring.classList.add('hidden');
+      document.getElementById(step.highlight)?.classList.add('tutorial-highlight');
+      if (bTop) bTop.classList.add('hidden');
+      if (bBot) bBot.classList.add('hidden');
+      if (bLft) bLft.classList.add('hidden');
+      if (bRgt) bRgt.classList.add('hidden');
+      const vw   = window.innerWidth;
+      const tipW = Math.min(420, vw - 32);
+      tooltip.classList.remove('hidden');
+      tooltip.style.cssText = `left:${(vw - tipW) / 2}px;bottom:24px;top:auto;width:${tipW}px`;
+    }
+  }
+
+  /**
+   * Re-pin the floating ring to the current step's target after a BuildingsUI re-render.
+   * Lightweight — does NOT move blockers or tooltip.
+   */
+  _repositionRing() {
+    if (!this._tutStep?.highlightSelector) return;
+    const ring = document.getElementById('tut-spotlight-ring');
+    if (!ring || ring.classList.contains('hidden')) return;
+    const targetEl = document.querySelector(this._tutStep.highlightSelector);
+    if (!targetEl) return;
+    const pad  = 6;
+    const rect = targetEl.getBoundingClientRect();
+    ring.style.cssText = `top:${rect.top - pad}px;left:${rect.left - pad}px;width:${rect.width + pad * 2}px;height:${rect.height + pad * 2}px`;
+  }
+
+  /** Remove tutorial spotlight ring, blockers, and tooltip. */
+  _hideTutorial() {
+    this._tutStep = null;
+    document.getElementById('tutorial-tooltip')?.classList.add('hidden');
+    document.getElementById('tut-spotlight-ring')?.classList.add('hidden');
+    ['tut-block-top','tut-block-bottom','tut-block-left','tut-block-right']
+      .forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    document.querySelectorAll('.tutorial-highlight')
+      .forEach(el => el.classList.remove('tutorial-highlight'));
   }
 }

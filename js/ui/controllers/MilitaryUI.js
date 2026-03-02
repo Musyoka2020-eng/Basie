@@ -8,7 +8,7 @@
  * training queue.
  */
 import { eventBus } from '../../core/EventBus.js';
-import { UNITS_CONFIG, BUILDINGS_CONFIG, INVENTORY_ITEMS } from '../../entities/GAME_DATA.js';
+import { UNITS_CONFIG, BUILDINGS_CONFIG, INVENTORY_ITEMS, UNIT_TIER_REQUIREMENTS } from '../../entities/GAME_DATA.js';
 import { RES_META, fmt } from '../uiUtils.js';
 
 /** Buildings that appear in the Military tab, in display order. */
@@ -59,11 +59,12 @@ export class MilitaryUI {
   }
 
   _renderBuildingStatus() {
-    const cfg = BUILDINGS_CONFIG[this._activeBuildingId];
+    const cfg   = BUILDINGS_CONFIG[this._activeBuildingId];
     if (!cfg) return;
-    const level = this._s.bm.getLevelOf(this._activeBuildingId);
+    const level    = this._s.bm.getLevelOf(this._activeBuildingId);
     const statusEl = document.getElementById('military-building-status');
     if (!statusEl) return;
+
     if (level === 0) {
       statusEl.innerHTML = `<div class="military-building-unbuilt">
         <span class="building-icon">${cfg.icon}</span>
@@ -71,10 +72,33 @@ export class MilitaryUI {
         <span class="hint-text">Build it in the Base tab to unlock training.</span>
       </div>`;
     } else {
+      const slots      = cfg.trainingSlots;
+      const slotData   = slots?.[Math.min(level - 1, slots.length - 1)];
+      const nextData   = level < cfg.maxLevel ? slots?.[Math.min(level, slots.length - 1)] : null;
+      const curSlots   = slotData?.concurrentSlots ?? 1;
+      const curBatch   = slotData?.maxBatchSize ?? '∞';
+      const curTier    = slotData?.maxTrainableTier ?? '?';
+      const nextSlots  = nextData?.concurrentSlots ?? null;
+      const nextBatch  = nextData?.maxBatchSize ?? null;
+      const nextTier   = nextData?.maxTrainableTier ?? null;
+      const nextSpeedPct = nextData ? Math.round((1 - nextData.trainTimeMultiplier) * 100) : null;
+      const queueDepth = this._s.um.getTrainingQueueDepthForBuilding(this._activeBuildingId);
+
+      const changes = [];
+      if (nextSlots && nextSlots > curSlots) changes.push(`${nextSlots} slots`);
+      if (nextBatch && nextBatch > curBatch)  changes.push(`${nextBatch}/batch`);
+      if (nextTier  && nextTier  > curTier)   changes.push(`T${nextTier} unlocked`);
+      if (nextSpeedPct)                        changes.push(`-${nextSpeedPct}% time`);
+      const nextInfo = changes.length
+        ? `<span class="bld-next-hint">Lv.${level + 1}: ${changes.join(' · ')}</span>`
+        : '';
+
       statusEl.innerHTML = `<div class="military-building-active">
         <span class="building-icon">${cfg.icon}</span>
         <span class="building-name-label">${cfg.name}</span>
         <span class="building-level-badge">Lv.${level}</span>
+        <span class="bld-slot-badge" title="Concurrent slots · max batch · max tier">⚙️ ${queueDepth}/${curSlots} slot${curSlots !== 1 ? 's' : ''} · ${curBatch}/batch · max T${curTier}</span>
+        ${nextInfo}
       </div>`;
     }
   }
@@ -156,29 +180,54 @@ export class MilitaryUI {
           const tierKey = `${unitType.id}_t${tier}`;
           const count   = reserveMap[tierKey] ?? 0;
 
-          const techId  = tierCfg.techRequired ?? null;
-          const techMet = !techId || (this._s.tech?.getLevelOf(techId) ?? 0) >= 1;
+          const bldgCfg     = BUILDINGS_CONFIG[buildingId];
+          const slotData    = bldgCfg?.trainingSlots?.[Math.min(buildingLevel - 1, (bldgCfg.trainingSlots?.length ?? 1) - 1)];
+          const maxBatchSz  = slotData?.maxBatchSize ?? Infinity;
+          const bldgTierMet = !slotData || tier <= (slotData.maxTrainableTier ?? 99);
+          const neededBldgLvl = bldgTierMet ? null : (() => {
+            const slots = bldgCfg?.trainingSlots ?? [];
+            for (let i = 0; i < slots.length; i++) {
+              if ((slots[i].maxTrainableTier ?? 99) >= tier) return i + 1;
+            }
+            return null;
+          })();
+
+          const tierReq   = UNIT_TIER_REQUIREMENTS?.[unitType.id]?.[tier];
+          const techId     = tierReq?.techRequired ?? tierCfg.techRequired ?? null;
+          const techMet    = !techId || (this._s.tech?.getLevelOf(techId) ?? 0) >= (tierReq?.minTechLevel ?? 1);
+          const bldgMet    = !tierReq?.minBuildingLevel || buildingLevel >= tierReq.minBuildingLevel;
           const isHQUnlocked = this._s.um._bm?.getHQUnlockedIds('units')?.has(unitType.id) ?? true;
-          const isLocked     = !isHQUnlocked || !techMet;
+          const isLocked     = !isHQUnlocked || !bldgTierMet || !techMet || !bldgMet;
           const lockReason   = !isHQUnlocked
             ? (() => { const lv = this._s.um._bm?.getRequiredHQLevel('units', unitType.id); return lv ? `HQ Lv.${lv} required` : 'Locked'; })()
-            : (techId ? `Research: ${techId.replace(/_/g, ' ')}` : 'Locked');
+            : !bldgTierMet ? `${bldgCfg?.name ?? buildingId} Lv.${neededBldgLvl ?? '?'} required to train T${tier}`
+            : !bldgMet ? `${bldgCfg?.name ?? buildingId} Lv.${tierReq.minBuildingLevel} required`
+            : (techId ? `Research: ${techId.replace(/_/g, ' ')} Lv.${tierReq?.minTechLevel ?? 1}` : 'Locked');
 
           const maxAffordable = isLocked ? 0 : this._s.rm.maxAffordable(tierCfg.cost ?? {});
 
           const prevKey     = `${unitType.id}_t${tier - 1}`;
           const prevCount   = tier > 1 ? (reserveMap[prevKey] ?? 0) : 0;
-          const canUpgrade  = !isLocked && tier > 1 && prevCount > 0;
           const upgradeCost = tierCfg.upgradeCost ?? null;
-          const maxUpgradable = canUpgrade && upgradeCost ? this._s.rm.maxAffordable(upgradeCost) : 0;
+          const canUpgrade  = !isLocked && tier > 1 && prevCount > 0 && upgradeCost !== null;
+          const maxUpgradable  = canUpgrade ? this._s.rm.maxAffordable(upgradeCost) : 0;
+          const upgradeTimeSec = canUpgrade ? (tierCfg.upgradeTime ?? Math.ceil((tierCfg.trainTime ?? 10) * 0.35)) : 0;
 
           const costHtml = Object.entries(tierCfg.cost ?? {}).map(([res, amt]) =>
             `<span class="cost-chip ${(snap[res]?.amount ?? 0) >= amt ? 'affordable' : 'unaffordable'}">${RES_META[res]?.icon ?? '?'} ${fmt(amt)}</span>`
           ).join('');
 
+          const upgradeMaxAmt  = canUpgrade ? Math.min(prevCount, maxUpgradable, isFinite(maxBatchSz) ? maxBatchSz : Infinity) : 0;
+          const upgCostHtml    = canUpgrade && upgradeCost
+            ? Object.entries(upgradeCost).map(([res, amt]) =>
+                `<span class="cost-chip ${(snap[res]?.amount ?? 0) >= amt ? 'affordable' : 'unaffordable'}">${RES_META[res]?.icon ?? '?'} ${fmt(amt)}</span>`
+              ).join('')
+            : '';
+
           const card = document.createElement('div');
           card.className = `tier-unit-card${isLocked ? ' locked' : ''}`;
           card.dataset.tier = tier;
+          card.dataset.actionMode = 'train';
           card.innerHTML = `
             <div class="tuc-top">
               <span class="tuc-badge" title="Tier ${tier}">T${tier}</span>
@@ -193,44 +242,119 @@ export class MilitaryUI {
               <span title="ATK">⚔️ ${tierCfg.stats?.attack ?? '?'}</span>
               <span title="DEF">🛡️ ${tierCfg.stats?.defense ?? '?'}</span>
             </div>
-            <div class="tuc-cost">${costHtml}</div>
             <div class="tuc-actions">
               ${isLocked
                 ? `<div class="tuc-locked">🔒 ${lockReason}</div>`
-                : `<div class="tuc-train-row">
-                     <button class="btn-tier-max" ${maxAffordable === 0 ? 'disabled' : ''}>MAX</button>
-                     <input type="number" class="train-amount" value="1" min="1" max="${Math.max(1, maxAffordable)}" ${maxAffordable === 0 ? 'disabled' : ''}>
-                     <button class="btn-tier-train" ${maxAffordable === 0 ? 'disabled' : ''}>Train</button>
+                : `${canUpgrade ? `
+                   <div class="tuc-mode-toggle">
+                     <button class="tuc-mode-btn tuc-mode-btn--active" data-mode="train">Train</button>
+                     <button class="tuc-mode-btn" data-mode="upgrade">⬆ Upgrade</button>
                    </div>
-                   ${canUpgrade ? `<button class="btn-tier-upgrade" ${maxUpgradable === 0 ? 'disabled' : ''}>⬆ Upgrade from T${tier - 1}</button>` : ''}`
+                   <div class="tuc-upgrade-info" style="display:none">×${prevCount} T${tier - 1} available — ⏱ ${upgradeTimeSec}s/unit · cost/unit:</div>` : ''}
+                   <div class="tuc-cost">${costHtml}</div>
+                   <div class="tuc-train-row">
+                     <button class="btn btn-ghost btn-sm btn-tier-max" ${maxAffordable === 0 ? 'disabled' : ''}>MAX</button>
+                     <input type="number" class="train-amount" value="1" min="1" max="${Math.max(1, Math.min(maxAffordable, isFinite(maxBatchSz) ? maxBatchSz : maxAffordable))}" ${maxAffordable === 0 ? 'disabled' : ''}>
+                     <button class="btn btn-primary btn-sm btn-tier-action" ${maxAffordable === 0 ? 'disabled' : ''}>Train</button>
+                   </div>
+                   ${isFinite(maxBatchSz) ? `<div class="tuc-batch-hint">max ${maxBatchSz}/batch</div>` : ''}`
               }
             </div>`;
 
+          let ttTrainTooltipHtml = '', ttUpgradeTooltipHtml = '';
+
           if (!isLocked) {
-            card.querySelector('.btn-tier-max')?.addEventListener('click', () => {
-              eventBus.emit('ui:click');
-              const inp = card.querySelector('.train-amount');
-              if (inp) inp.value = maxAffordable;
-            });
-            card.querySelector('.btn-tier-train')?.addEventListener('click', () => {
-              eventBus.emit('ui:click');
-              const amt = parseInt(card.querySelector('.train-amount')?.value, 10) || 1;
-              const r   = this._s.um.train(unitType.id, amt, tier);
-              if (!r.success) {
-                eventBus.emit('ui:error');
-                this._s.notifications?.show('warning', 'Cannot Train', r.reason);
-              }
-            });
+            const costEl        = card.querySelector('.tuc-cost');
+            const input         = card.querySelector('.train-amount');
+            const actionBtn     = card.querySelector('.btn-tier-action');
+            const maxBtn        = card.querySelector('.btn-tier-max');
+            const upgradeInfoEl = card.querySelector('.tuc-upgrade-info');
+            const timeEl        = card.querySelector('.tuc-time');
+            const topEl         = card.querySelector('.tuc-top');
+
+            // ── Mode toggle: swap cost chips + button label in-place ─────────
             if (canUpgrade) {
-              card.querySelector('.btn-tier-upgrade')?.addEventListener('click', () => {
-                eventBus.emit('ui:click');
-                const r = this._s.um.upgradeTier(unitType.id, tier - 1, 1);
-                if (!r.success) {
-                  eventBus.emit('ui:error');
-                  this._s.notifications?.show('warning', 'Cannot Upgrade', r.reason);
-                }
+              card.querySelectorAll('.tuc-mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                  eventBus.emit('ui:click');
+                  const mode = btn.dataset.mode;
+                  card.dataset.actionMode = mode;
+                  card.querySelectorAll('.tuc-mode-btn').forEach(b =>
+                    b.classList.toggle('tuc-mode-btn--active', b.dataset.mode === mode)
+                  );
+                  if (mode === 'upgrade') {
+                    costEl.innerHTML      = upgCostHtml;
+                    actionBtn.textContent = '⬆ Upgrade';
+                    actionBtn.disabled    = upgradeMaxAmt === 0;
+                    maxBtn.disabled       = upgradeMaxAmt === 0;
+                    input.max             = String(Math.max(1, upgradeMaxAmt));
+                    input.value           = '1';
+                    input.disabled        = upgradeMaxAmt === 0;
+                    if (upgradeInfoEl) upgradeInfoEl.style.display = '';
+                    if (timeEl) timeEl.textContent = `⏱ ${upgradeTimeSec}s`;
+                    if (topEl)  topEl.dataset.tooltipHtml = ttUpgradeTooltipHtml;
+                  } else {
+                    costEl.innerHTML      = costHtml;
+                    actionBtn.textContent = 'Train';
+                    actionBtn.disabled    = maxAffordable === 0;
+                    maxBtn.disabled       = maxAffordable === 0;
+                    input.max             = String(Math.max(1, Math.min(maxAffordable, isFinite(maxBatchSz) ? maxBatchSz : maxAffordable)));
+                    input.value           = '1';
+                    input.disabled        = maxAffordable === 0;
+                    if (upgradeInfoEl) upgradeInfoEl.style.display = 'none';
+                    if (timeEl) timeEl.textContent = `⏱ ${tierCfg.trainTime ?? '?'}s`;
+                    if (topEl)  topEl.dataset.tooltipHtml = ttTrainTooltipHtml;
+                  }
+                });
               });
             }
+
+            // ── Shared MAX + action button ───────────────────────────────────
+            maxBtn?.addEventListener('click', () => {
+              eventBus.emit('ui:click');
+              input.value = card.dataset.actionMode === 'upgrade'
+                ? upgradeMaxAmt
+                : Math.min(maxAffordable, isFinite(maxBatchSz) ? maxBatchSz : maxAffordable);
+            });
+            actionBtn?.addEventListener('click', () => {
+              eventBus.emit('ui:click');
+              const amt = parseInt(input?.value, 10) || 1;
+              if (card.dataset.actionMode === 'upgrade') {
+                const r = this._s.um.upgradeTier(unitType.id, tier - 1, amt);
+                if (!r.success) { eventBus.emit('ui:error'); this._s.notifications?.show('warning', 'Cannot Upgrade', r.reason); }
+              } else {
+                const r = this._s.um.train(unitType.id, amt, tier);
+                if (!r.success) { eventBus.emit('ui:error'); this._s.notifications?.show('warning', 'Cannot Train', r.reason); }
+              }
+            });
+          }
+
+          // ── Pre-compute train + upgrade tooltips ────────────────────────────
+          {
+            const sp     = tierCfg.stats?.speed;
+            const ttBase = [
+              `<div class="tt-title">${tierCfg.name} \u2014 Tier ${tier}</div>`,
+              `<div class="tt-row"><span class="tt-label">❤️ HP</span><span>${tierCfg.stats?.hp ?? '?'}</span></div>`,
+              `<div class="tt-row"><span class="tt-label">⚔️ ATK</span><span>${tierCfg.stats?.attack ?? '?'}</span></div>`,
+              `<div class="tt-row"><span class="tt-label">🛡️ DEF</span><span>${tierCfg.stats?.defense ?? '?'}</span></div>`,
+              sp != null ? `<div class="tt-row"><span class="tt-label">💨 Speed</span><span>${sp}</span></div>` : '',
+              `<div class="tt-sep"></div>`,
+            ].filter(Boolean).join('');
+            const ttTech = techId
+              ? `<div class="tt-row tt-muted">🔬 Requires: ${techId.replace(/_/g, ' ')}</div>`
+              : '';
+            const ttUpgCostBlock = upgradeCost
+              ? `<div class="tt-sep"></div><div class="tt-row tt-sub">⬆ Upgrade cost: ${Object.entries(upgradeCost).map(([r, a]) => `${RES_META[r]?.icon ?? r} ${fmt(a)}`).join(' · ')}</div>`
+              : '';
+            ttTrainTooltipHtml   = ttBase
+              + `<div class="tt-row"><span class="tt-label">⏱ Train</span><span>${tierCfg.trainTime ?? '?'}s each</span></div>`
+              + ttTech + ttUpgCostBlock;
+            ttUpgradeTooltipHtml = canUpgrade
+              ? ttBase
+                + `<div class="tt-row"><span class="tt-label">⏱ Upgrade</span><span>${upgradeTimeSec}s each</span></div>`
+                + ttTech + ttUpgCostBlock
+              : ttTrainTooltipHtml;
+            card.querySelector('.tuc-top').dataset.tooltipHtml = ttTrainTooltipHtml;
           }
 
           cardsWrap.appendChild(card);

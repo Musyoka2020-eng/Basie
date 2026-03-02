@@ -148,6 +148,86 @@ export const ACHIEVEMENTS_CONFIG = {
     trigger: 'hero_recruited', count: 4,
     reward: { money: 10000, diamond: 10, xp: 5000 }, rarity: 'legendary',
   },
+
+  // ── Combat milestones ─────────────────────────────────────────────
+  unstoppable: {
+    id: 'unstoppable', name: 'Unstoppable', icon: '💀',
+    description: 'Win 100 battles.',
+    trigger: 'combat_win', count: 100,
+    reward: { money: 20000, diamond: 20, xp: 8000 }, rarity: 'legendary',
+  },
+
+  // ── Commander level milestones ────────────────────────────────────
+  rising_commander: {
+    id: 'rising_commander', name: 'Rising Commander', icon: '🌟',
+    description: 'Reach Commander Level 5.',
+    trigger: 'user_level', count: 5,
+    reward: { money: 2000, xp: 500 }, rarity: 'uncommon',
+  },
+  seasoned_commander: {
+    id: 'seasoned_commander', name: 'Seasoned Commander', icon: '🎗️',
+    description: 'Reach Commander Level 10.',
+    trigger: 'user_level', count: 10,
+    reward: { money: 5000, diamond: 5, xp: 2000 }, rarity: 'rare',
+  },
+
+  // ── Unit training milestones ──────────────────────────────────────
+  full_army: {
+    id: 'full_army', name: 'Full Army', icon: '🪖',
+    description: 'Train 200 units in total.',
+    trigger: 'unit_trained', count: 200,
+    reward: { money: 5000, iron: 2000, xp: 2500 }, rarity: 'rare',
+  },
+
+  // ── Research milestones ───────────────────────────────────────────
+  tech_master: {
+    id: 'tech_master', name: 'Tech Master', icon: '🧪',
+    description: 'Research 20 technologies.',
+    trigger: 'research', count: 20,
+    reward: { money: 8000, diamond: 8, xp: 4000 }, rarity: 'legendary',
+  },
+
+  // ── Market trade milestones ───────────────────────────────────────
+  merchant: {
+    id: 'merchant', name: 'Merchant', icon: '🏪',
+    description: 'Complete 10 market trades.',
+    trigger: 'market_trade', count: 10,
+    reward: { money: 1000, xp: 400 }, rarity: 'common',
+  },
+  trade_empire: {
+    id: 'trade_empire', name: 'Trade Empire', icon: '💰',
+    description: 'Complete 100 market trades.',
+    trigger: 'market_trade', count: 100,
+    reward: { money: 10000, diamond: 10, xp: 3000 }, rarity: 'legendary',
+  },
+
+  // ── Login streak milestones ───────────────────────────────────────
+  dedicated: {
+    id: 'dedicated', name: 'Dedicated', icon: '📅',
+    description: 'Maintain a 7-day login streak.',
+    trigger: 'login_streak', count: 7,
+    reward: { money: 3000, diamond: 3, xp: 1000 }, rarity: 'uncommon',
+  },
+  loyal: {
+    id: 'loyal', name: 'Loyal Commander', icon: '🛡️',
+    description: 'Maintain a 30-day login streak.',
+    trigger: 'login_streak', count: 30,
+    reward: { money: 15000, diamond: 30, xp: 5000 }, rarity: 'legendary',
+  },
+
+  // ── Cumulative resource milestones (ratchet) ──────────────────────
+  resource_baron: {
+    id: 'resource_baron', name: 'Resource Baron', icon: '🪙',
+    description: 'Earn 100,000 gold in total.',
+    trigger: 'total_money', count: 100000,
+    reward: { money: 5000, xp: 2000 }, rarity: 'rare',
+  },
+  iron_forge: {
+    id: 'iron_forge', name: 'Iron Forge', icon: '⚒️',
+    description: 'Earn 50,000 iron in total.',
+    trigger: 'total_iron', count: 50000,
+    reward: { iron: 2000, diamond: 5, xp: 2000 }, rarity: 'rare',
+  },
 };
 
 // ─── CHALLENGES CONFIG ────────────────────────────────────────────

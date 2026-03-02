@@ -5,7 +5,7 @@
  * has 10 tiers. Reserve and queue keys use the format "infantry_t1", "ranged_t3", etc.
  */
 import { eventBus } from '../core/EventBus.js';
-import { UNITS_CONFIG, BUILDINGS_CONFIG } from '../entities/GAME_DATA.js';
+import { UNITS_CONFIG, BUILDINGS_CONFIG, UNIT_TIER_REQUIREMENTS } from '../entities/GAME_DATA.js';
 
 export class UnitManager {
   /**
@@ -24,6 +24,14 @@ export class UnitManager {
     this._squadCounter = 1;
     /** @type {Map<string, Array<{count, endsAt, name, icon, tier}>>} tierKey -> queue */
     this._queues = new Map();
+    // VIP perk: stacking train time reduction
+    this._vipTrainMultiplier = 1.0;
+    eventBus.on('user:vipUpdate', ({ perks }) => {
+      this._vipTrainMultiplier = 1 - Math.min(0.80, perks?.trainReduction ?? 0);
+    });
+    // Sandbox mode: near-instant train times
+    this._gameMode = 'campaign';
+    eventBus.on('game:modeChanged', ({ mode }) => { this._gameMode = mode; });
   }
 
   // ── Tier key helpers ───────────────────────────────────────────────────────
@@ -50,20 +58,32 @@ export class UnitManager {
       if (queueArray.length === 0) continue;
 
       const current = queueArray[0];
+      // Sandbox mode: advance each active timer 100× faster
+      if (current.endsAt && this._gameMode === 'sandbox') {
+        current.endsAt -= dt * 99 * 1000;
+      }
       if (now >= current.endsAt) {
         // Training complete — 'unitId' variable is actually the tierKey (e.g. 'infantry_t1')
         queueArray.shift();
-        
-        // Add to reserve (unitId here is the tierKey since queues are keyed by tierKey)
-        const existing = this._reserve.get(unitId) ?? 0;
-        this._reserve.set(unitId, existing + current.count);
+
+        if (current.type === 'upgrade') {
+          // Tier upgrade complete: move units from fromTierKey to the toTierKey (which is 'unitId' here)
+          const fromCount = this._reserve.get(current.fromTierKey) ?? 0;
+          this._reserve.set(current.fromTierKey, Math.max(0, fromCount - current.count));
+          const toCount = this._reserve.get(unitId) ?? 0;
+          this._reserve.set(unitId, toCount + current.count);
+        } else {
+          // Regular training: add to reserve
+          const existing = this._reserve.get(unitId) ?? 0;
+          this._reserve.set(unitId, existing + current.count);
+        }
         
         // Start next item in this specific queue
         if (queueArray.length > 0) {
           const { unitId: baseId, tier } = this._parseTierKey(unitId);
           const cfg = UNITS_CONFIG[baseId];
           const tierCfg = cfg?.tiers?.[tier - 1] ?? cfg;
-          const trainMs = (tierCfg?.trainTime ?? 10) * 1000 * queueArray[0].count;
+          const trainMs = (tierCfg?.trainTime ?? 10) * 1000 * queueArray[0].count * this._vipTrainMultiplier;
           queueArray[0].startedAt = now;
           queueArray[0].endsAt = now + trainMs;
         }
@@ -125,11 +145,22 @@ export class UnitManager {
 
     // Tech gate for tier 4+
     if (tier >= 4 && tierCfg.techRequired) {
+      const tierReq   = UNIT_TIER_REQUIREMENTS?.[unitId]?.[tier];
       const techLevel = this._tm?.getLevelOf(tierCfg.techRequired) ?? 0;
-      const neededLevel = tier - 3; // tier 4 needs level 1, tier 5 needs level 2, etc.
+      const neededLevel = tierReq?.minTechLevel ?? (tier - 3);
       if (techLevel < neededLevel) {
         const techName = tierCfg.techRequired.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        return { success: false, reason: `Requires ${techName} Lv.${neededLevel} to train tier ${tier}.` };
+        return { success: false, reason: `Requires ${techName} Lv.${neededLevel} to train Tier ${tier}.` };
+      }
+    }
+
+    // Building-level gate per tier (from UNIT_TIER_REQUIREMENTS)
+    const tierReq = UNIT_TIER_REQUIREMENTS?.[unitId]?.[tier];
+    if (tierReq?.minBuildingLevel > 1) {
+      const bldgLevel = this._bm.getLevelOf(cfg.buildingId);
+      if (bldgLevel < tierReq.minBuildingLevel) {
+        const bldgName = BUILDINGS_CONFIG[cfg.buildingId]?.name ?? cfg.buildingId;
+        return { success: false, reason: `Requires ${bldgName} Lv.${tierReq.minBuildingLevel} to train Tier ${tier} ${cfg.name}.` };
       }
     }
 
@@ -146,6 +177,31 @@ export class UnitManager {
       return { success: false, reason: `Requires ${bldgName} to be built.` };
     }
 
+    // Building tier gate + batch size cap (from trainingSlots table)
+    const bldgLevel   = this._bm.getLevelOf(requiredBldg ?? '');
+    const bldgCfg     = BUILDINGS_CONFIG[requiredBldg];
+    const slotEntry   = bldgCfg?.trainingSlots?.[Math.min(bldgLevel - 1, (bldgCfg.trainingSlots?.length ?? 1) - 1)];
+    if (slotEntry) {
+      const maxTier = slotEntry.maxTrainableTier ?? 99;
+      if (tier > maxTier) {
+        // Find the level that first allows this tier
+        const neededLv = (bldgCfg.trainingSlots ?? []).findIndex(s => (s.maxTrainableTier ?? 0) >= tier);
+        const bldgName = bldgCfg?.name ?? requiredBldg;
+        return { success: false, reason: `${bldgName} Lv.${neededLv + 1} required to train Tier ${tier} units.` };
+      }
+      const maxBatch = slotEntry.maxBatchSize ?? Infinity;
+      if (count > maxBatch) {
+        return { success: false, reason: `Max ${maxBatch} units per batch at this building level.` };
+      }
+    }
+
+    // Per-building concurrent-slot limit (from trainingSlots table in BUILDINGS_CONFIG)
+    const maxBuildingSlots = this._getBuildingSlots(requiredBldg);
+    if (this.getTrainingQueueDepthForBuilding(requiredBldg) >= maxBuildingSlots) {
+      const bldgName = BUILDINGS_CONFIG[requiredBldg]?.name ?? requiredBldg;
+      return { success: false, reason: `${bldgName} is at training capacity (${maxBuildingSlots} slot${maxBuildingSlots !== 1 ? 's' : ''}). Upgrade the building to unlock more slots.` };
+    }
+
     // Scale cost by count
     const totalCost = {};
     for (const [res, amt] of Object.entries(tierCfg.cost)) {
@@ -155,7 +211,7 @@ export class UnitManager {
     if (!this._rm.canAfford(totalCost)) return { success: false, reason: 'Insufficient resources.' };
     this._rm.spend(totalCost);
 
-    const trainMs   = (tierCfg.trainTime ?? 10) * 1000 * count;
+    const trainMs   = (tierCfg.trainTime ?? 10) * 1000 * count * this._vipTrainMultiplier;
     const isFirst   = unitQueue.length === 0;
     const now       = Date.now();
 
@@ -187,18 +243,29 @@ export class UnitManager {
       return { success: false, reason: 'Already at maximum tier.' };
     }
 
-    const tierCfg = cfg.tiers?.[fromTier - 1];
-    if (!tierCfg?.upgradeCost) {
+    const fromTierCfg = cfg.tiers?.[fromTier - 1];
+    const destTierCfg = cfg.tiers?.[toTier - 1];
+    if (!destTierCfg?.upgradeCost) {
       return { success: false, reason: 'This tier cannot be upgraded.' };
     }
 
     // Check tech requirement for destination tier
-    const destTierCfg = cfg.tiers?.[toTier - 1];
     if (destTierCfg?.techRequired) {
-      const neededLevel = toTier - 3;
+      const tierReq     = UNIT_TIER_REQUIREMENTS?.[unitId]?.[toTier];
+      const neededLevel = tierReq?.minTechLevel ?? (toTier - 3);
       if ((this._tm?.getLevelOf(destTierCfg.techRequired) ?? 0) < neededLevel) {
         const techName = destTierCfg.techRequired.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         return { success: false, reason: `Requires ${techName} Lv.${neededLevel}.` };
+      }
+    }
+
+    // Building-level gate for destination tier
+    const destTierReq = UNIT_TIER_REQUIREMENTS?.[unitId]?.[toTier];
+    if (destTierReq?.minBuildingLevel > 1) {
+      const bldgLevel = this._bm.getLevelOf(cfg.buildingId);
+      if (bldgLevel < destTierReq.minBuildingLevel) {
+        const bldgName = BUILDINGS_CONFIG[cfg.buildingId]?.name ?? cfg.buildingId;
+        return { success: false, reason: `Requires ${bldgName} Lv.${destTierReq.minBuildingLevel} to upgrade to Tier ${toTier}.` };
       }
     }
 
@@ -208,19 +275,38 @@ export class UnitManager {
       return { success: false, reason: `Not enough T${fromTier} ${cfg.name} in reserve (have ${available}, need ${count}).` };
     }
 
+    // Cost: use the destination tier's defined upgradeCost (cheaper than training from scratch)
     const totalCost = {};
-    for (const [res, amt] of Object.entries(tierCfg.upgradeCost)) {
+    for (const [res, amt] of Object.entries(destTierCfg.upgradeCost)) {
       totalCost[res] = amt * count;
     }
     if (!this._rm.canAfford(totalCost)) return { success: false, reason: 'Insufficient resources for upgrade.' };
     this._rm.spend(totalCost);
 
-    // Deduct from lower tier, add to higher tier
+    // Remove from fromTier reserve immediately (held in queue until completion)
     this._reserve.set(fromKey, available - count);
-    const toKey = this._tierKey(unitId, toTier);
-    this._reserve.set(toKey, (this._reserve.get(toKey) ?? 0) + count);
 
-    eventBus.emit('army:updated');
+    // Queue the upgrade job in the toTier's queue
+    const toKey    = this._tierKey(unitId, toTier);
+    const toQueue  = this._queues.get(toKey) || [];
+    const upgradeTimeSec = destTierCfg.upgradeTime ?? Math.ceil((destTierCfg.trainTime ?? 10) * 0.35);
+    const trainMs  = upgradeTimeSec * 1000 * count * this._vipTrainMultiplier;
+    const isFirst  = toQueue.length === 0;
+    const now      = Date.now();
+
+    toQueue.push({
+      count, tier: toTier, tierKey: toKey,
+      type: 'upgrade',
+      fromTierKey: fromKey,
+      cost: totalCost,
+      endsAt:    isFirst ? now + trainMs : 0,
+      startedAt: isFirst ? now : 0,
+      name: `Upgrade → ${destTierCfg?.name ?? `T${toTier}`}`,
+      icon: cfg.icon,
+    });
+    this._queues.set(toKey, toQueue);
+
+    eventBus.emit('unit:queueUpdated', this.getAllQueues());
     return { success: true };
   }
 
@@ -235,10 +321,23 @@ export class UnitManager {
 
     // Refund resources
     const refund = {};
-    for (const [res, amt] of Object.entries(tierCfg?.cost ?? {})) {
-      refund[res] = amt * item.count;
+    if (item.cost) {
+      // Use the stored cost if available (upgrade jobs store actual cost)
+      for (const [res, amt] of Object.entries(item.cost)) {
+        refund[res] = amt;
+      }
+    } else {
+      for (const [res, amt] of Object.entries(tierCfg?.cost ?? {})) {
+        refund[res] = amt * item.count;
+      }
     }
     this._rm.add(refund);
+
+    // If cancelling an upgrade job, restore the fromTier units to reserve
+    if (item.type === 'upgrade' && item.fromTierKey) {
+      const fromCount = this._reserve.get(item.fromTierKey) ?? 0;
+      this._reserve.set(item.fromTierKey, fromCount + item.count);
+    }
 
     // Remove from queue
     queue.splice(index, 1);
@@ -247,7 +346,7 @@ export class UnitManager {
     if (index === 0 && queue.length > 0) {
       const next = queue[0];
       next.startedAt = Date.now();
-      next.endsAt = next.startedAt + ((tierCfg?.trainTime ?? 10) * 1000 * next.count);
+      next.endsAt = next.startedAt + ((tierCfg?.trainTime ?? 10) * 1000 * next.count * this._vipTrainMultiplier);
     }
 
     if (queue.length === 0) {
@@ -365,25 +464,55 @@ export class UnitManager {
     return { success: true };
   }
 
-  createSquad(name) {
+  createSquad(name, barracksInstanceId = null) {
     const maxSquads = this.getMaxSquads();
     if (this._squads.size >= maxSquads) {
       return { success: false, reason: `Squad limit reached (${maxSquads}). Build another Barracks to unlock a new squad slot.` };
     }
     const id = 'squad_' + this._squadCounter++;
-    this._squads.set(id, { id, name, units: new Map(), slotUnitLinks: new Map(), slotUnits: new Map() });
+    this._squads.set(id, { id, name, barracksInstanceId, units: new Map(), slotUnitLinks: new Map(), slotUnits: new Map() });
     eventBus.emit('army:updated');
     return { success: true, squadId: id };
   }
 
   /**
-   * Returns how many squads can be created based on built Barracks count.
-   * Each built Barracks instance provides one squad slot.
+   * Returns how many squads can be created — one per built Barracks instance.
+   * Each Barracks instance is unlocked by HQ level (see BUILDINGS_CONFIG.barracks.instanceSlots).
    * @returns {number}
    */
   getMaxSquads() {
-    const built = this._bm.getBuiltInstanceCount('barracks');
-    return Math.max(1, built); // always at least 1 so new players aren't stuck
+    return this._bm.getBuiltInstanceCount('barracks');
+  }
+
+  /**
+   * Count how many training (and upgrade) queue items are queued for a given building.
+   * Used by the UI to display queue depth and enforce concurrent-slot limits.
+   * @param {string} buildingId
+   * @returns {number}
+   */
+  getTrainingQueueDepthForBuilding(buildingId) {
+    let count = 0;
+    for (const [tierKey, queueArray] of this._queues.entries()) {
+      const { unitId } = this._parseTierKey(tierKey);
+      const cfg = UNITS_CONFIG[unitId];
+      if (cfg?.buildingId === buildingId) count += queueArray.length;
+    }
+    return count;
+  }
+
+  /**
+   * Returns the maximum concurrent training slots for a building at its current level.
+   * Reads from BUILDINGS_CONFIG[buildingId].trainingSlots if defined.
+   * @private
+   * @param {string} buildingId
+   * @returns {number}
+   */
+  _getBuildingSlots(buildingId) {
+    const level = this._bm.getLevelOf(buildingId);
+    const cfg   = BUILDINGS_CONFIG[buildingId];
+    if (!cfg?.trainingSlots || level <= 0) return 1;
+    const idx = Math.min(level - 1, cfg.trainingSlots.length - 1);
+    return cfg.trainingSlots[idx]?.concurrentSlots ?? 1;
   }
 
   /**
@@ -455,6 +584,29 @@ export class UnitManager {
     const tierKey = this._tierKey(unitId, tier);
     const reserveCount = this._reserve.get(tierKey) ?? 0;
     if (reserveCount < count) return { success: false, reason: 'Not enough in reserve' };
+
+    // Per-slot unit capacity gated by that barracks instance's level
+    if (slotIndex !== null) {
+      const bldgCfg  = BUILDINGS_CONFIG['barracks'];
+      const levelStats = bldgCfg?.levelStats;
+      if (levelStats) {
+        const instId   = squad.barracksInstanceId;
+        const bldgLevel = instId
+          ? (this._bm.getInstanceLevelOf?.(instId) ?? this._bm.getLevelOf('barracks'))
+          : this._bm.getLevelOf('barracks');
+        if (bldgLevel > 0) {
+          const stats   = levelStats[Math.min(bldgLevel - 1, levelStats.length - 1)];
+          const cap     = stats?.slotCapacity ?? Infinity;
+          const existing = squad.slotUnits?.get(slotIndex);
+          const existingCount = (existing?.tierKey === tierKey ? existing.count : 0);
+          if (existingCount + count > cap) {
+            const nextLvlIdx = levelStats.findIndex((s, i) => i > bldgLevel - 1 && (s.slotCapacity ?? 0) >= existingCount + count);
+            const hint = nextLvlIdx >= 0 ? ` Upgrade Barracks to Lv.${nextLvlIdx + 1} for more.` : '';
+            return { success: false, reason: `Slot capacity full (${cap.toLocaleString()} units max).${hint}` };
+          }
+        }
+      }
+    }
 
     // If adding to a slot and the slot already has a different tier, clear the old one first
     if (slotIndex !== null) {
@@ -545,10 +697,11 @@ export class UnitManager {
     const serializedSquads = {};
     for (const [id, squad] of this._squads.entries()) {
       serializedSquads[id] = {
-        id:             squad.id,
-        name:           squad.name,
-        units:          Object.fromEntries(squad.units),
-        slotUnitLinks:  Object.fromEntries(
+        id:                 squad.id,
+        name:               squad.name,
+        barracksInstanceId: squad.barracksInstanceId ?? null,
+        units:              Object.fromEntries(squad.units),
+        slotUnitLinks:      Object.fromEntries(
           [...(squad.slotUnitLinks ?? new Map()).entries()].map(([k, v]) => [String(k), v])
         ),
         slotUnits: Object.fromEntries(
@@ -614,7 +767,7 @@ export class UnitManager {
             if (v && v.tierKey) slotUnits.set(Number(k), { tierKey: migrateKey(v.tierKey) ?? v.tierKey, count: v.count ?? 0 });
           }
         }
-        this._squads.set(id, { id: s.id, name: s.name, units, slotUnitLinks, slotUnits });
+        this._squads.set(id, { id: s.id, name: s.name, barracksInstanceId: s.barracksInstanceId ?? null, units, slotUnitLinks, slotUnits });
       }
     }
     this._squadCounter = data.squadCounter ?? 1;

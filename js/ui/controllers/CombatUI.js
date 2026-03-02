@@ -21,19 +21,58 @@ export class CombatUI {
   constructor(systems) {
     this._s = systems;
     this._selectedCampaignStage = null;
+    // Track current game mode for mode-specific rendering
+    this._gameMode = 'campaign';
+    this._survivalWave = 0;
   }
 
   init() {
+    // Initialize from current mode (important for saves loaded with non-campaign mode)
+    this._gameMode = this._s.cm.getGameMode?.() ?? 'campaign';
+    this._survivalWave = this._s.cm.getSurvivalState?.()?.wave ?? 0;
+
     eventBus.on('ui:viewChanged',    v   => { if (v === 'combat') this.render(); });
     eventBus.on('combat:logUpdated', log => this._renderBattleLog(log));
     eventBus.on('combat:victory',    ()  => this.render());
     eventBus.on('combat:defeat',     ()  => this.render());
+    eventBus.on('game:modeChanged',  ({ mode }) => {
+      this._gameMode = mode;
+      this.render();
+    });
+    eventBus.on('survival:waveCompleted', ({ wave }) => {
+      this._survivalWave = wave;
+      // Refresh the survival wave counter in the panel if it is visible
+      const counterEl = document.getElementById('survival-wave-count');
+      if (counterEl) counterEl.textContent = wave;
+    });
+    eventBus.on('survival:ended', ({ score }) => {
+      this._survivalWave = 0;
+      this.render(); // re-render to show reset state
+      this._s.notifications?.show('info', '🌊 Survival Ended', `You survived ${score} wave${score !== 1 ? 's' : ''}! High score updated.`);
+    });
   }
 
   render() {
     const panel = document.getElementById('campaign-panel');
     if (!panel) return;
-    panel.innerHTML = '<h3>Campaign Map</h3>';
+
+    const gameMode = this._s.cm.getGameMode?.() ?? this._gameMode;
+
+    // ── Shared mode header ──────────────────────────────────────────
+    const modeLabel = {
+      campaign: null, // no badge needed for default mode
+      survival: '<div class="sandbox-banner" style="background:var(--clr-danger)22;border:1px solid var(--clr-danger)44;color:var(--clr-danger)">🌊 <strong>Survival Mode</strong> — Endless waves, escalating difficulty</div>',
+      sandbox:  '<div class="sandbox-banner">🧪 <strong>Sandbox Mode</strong> — Resources Unlimited &middot; Instant Timers</div>',
+    };
+    const bannerHtml = modeLabel[gameMode] ?? '';
+    panel.innerHTML = `<h3>Campaign Map</h3>${bannerHtml}`;
+
+    // ── Survival mode: show arena panel instead of campaign map ─────
+    if (gameMode === 'survival') {
+      this._renderSurvivalPanel(panel);
+      this._renderBattleLog(this._s.cm.getBattleLog());
+      return;
+    }
 
     // ── World map ──
     const mapWrapper = document.createElement('div');
@@ -94,6 +133,85 @@ export class CombatUI {
     }
 
     this._renderBattleLog(this._s.cm.getBattleLog());
+  }
+
+  /**
+   * Render the Survival mode arena panel.
+   * @param {HTMLElement} panel
+   * @private
+   */
+  _renderSurvivalPanel(panel) {
+    const { wave, mult } = this._s.cm.getSurvivalState?.() ?? { wave: 0, mult: 1 };
+    const squads  = this._s.um.getSquads?.() ?? [];
+    const squadOptions = squads.map(sq =>
+      `<option value="${sq.id}">${sq.name}</option>`
+    ).join('');
+
+    // High score from profile if accessible
+    let highScore = 0;
+    try { highScore = this._s.user?.getProfile()?.stats?.waveHighScore ?? 0; } catch { /* no user ref */ }
+
+    const survivalDiv = document.createElement('div');
+    survivalDiv.className = 'card';
+    survivalDiv.style.cssText = 'padding:var(--space-4);margin-top:var(--space-3)';
+    survivalDiv.innerHTML = `
+      <div style="text-align:center;padding:var(--space-4) 0">
+        <div style="font-size:3rem;margin-bottom:var(--space-2)">🌊</div>
+        <div style="font-size:var(--text-xl);font-weight:700;margin-bottom:var(--space-1)">Survival Arena</div>
+        <div style="color:var(--clr-text-secondary);font-size:var(--text-sm)">
+          Fight endless escalating waves. Enemies grow stronger by 5% each wave.
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-around;margin:var(--space-4) 0;text-align:center">
+        <div>
+          <div style="font-size:1.75rem;font-weight:700;color:var(--clr-primary)">
+            <span id="survival-wave-count">${wave}</span>
+          </div>
+          <div style="font-size:var(--text-xs);color:var(--clr-text-secondary)">Waves Survived</div>
+        </div>
+        <div>
+          <div style="font-size:1.75rem;font-weight:700;color:var(--clr-gold)">${highScore}</div>
+          <div style="font-size:var(--text-xs);color:var(--clr-text-secondary)">High Score</div>
+        </div>
+        <div>
+          <div style="font-size:1.75rem;font-weight:700;color:var(--clr-danger)">${Math.round(mult * 100)}%</div>
+          <div style="font-size:var(--text-xs);color:var(--clr-text-secondary)">Enemy Strength</div>
+        </div>
+      </div>
+      ${squads.length === 0 ? `
+        <div class="empty-state" style="padding:var(--space-4)">
+          <p class="empty-state-title">No squads available</p>
+          <p style="color:var(--clr-text-muted);font-size:var(--text-sm)">Create a squad in the Barracks to fight.</p>
+        </div>
+      ` : `
+        <div style="display:flex;gap:var(--space-3);align-items:center">
+          <select id="survival-squad-select" class="styled-select" style="flex:1">
+            ${squadOptions}
+          </select>
+          <button class="btn btn-danger" id="btn-survival-fight" style="white-space:nowrap">⚔️ Fight Wave ${wave + 1}</button>
+        </div>
+      `}
+    `;
+    panel.appendChild(survivalDiv);
+
+    document.getElementById('btn-survival-fight')?.addEventListener('click', () => {
+      const squadId = document.getElementById('survival-squad-select')?.value;
+      if (!squadId) return;
+      const survState = this._s.cm.getSurvivalState?.() ?? { wave: 0 };
+      const proxy = {
+        id:    'survival_wave',
+        name:  `Survival Wave ${survState.wave + 1}`,
+        icon:  '🌊',
+        waves: [{ name: 'Survival Enemies', hp: 0, attack: 0, count: 0 }], // placeholder for wave count display
+      };
+      this._openBattleArena(proxy, squadId);
+    });
+  }
+
+  // ── Survival dummy for _openBattleArena signature ─────────────────
+  get _survivalMonsterProxy() {
+    const { wave } = this._s.cm.getSurvivalState?.() ?? { wave: 0 };
+    return { id: 'survival_wave', name: `Survival Wave ${wave + 1}`, icon: '🌊' };
   }
 
   _renderCampaignDetail(stage, canAttack) {
@@ -475,11 +593,7 @@ export class CombatUI {
 
     document.getElementById('battle-actions').innerHTML = `<button class="btn btn-primary" id="btn-battle-close">Continue</button>`;
     document.getElementById('btn-battle-close')?.addEventListener('click', () => {
-      const overlay = document.getElementById('modal-overlay');
-      const content = document.getElementById('modal-content');
-      if (overlay) overlay.classList.add('hidden');
-      if (content) content.innerHTML = '';
-      this.render();
+      closeModal(() => this.render());
     });
   }
 

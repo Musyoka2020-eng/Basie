@@ -1,0 +1,199 @@
+/* ================================================================
+   events.css
+   Styles for the Events view, event cards, active-event banner,
+   and event-related badge styles.
+   ================================================================ */
+
+/* ── Events banner (injected into #events-banner by EventsUI) ── */
+.events-banner {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+  background: linear-gradient(135deg, var(--clr-bg-2) 0%, color-mix(in srgb, var(--clr-gold) 15%, var(--clr-bg-2)) 100%);
+  border: 1px solid color-mix(in srgb, var(--clr-gold) 40%, transparent);
+}
+
+.events-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--clr-text-primary);
+  font-family: var(--font-base);
+  transition: background 0.15s;
+}
+
+.events-banner-inner:hover {
+  background: color-mix(in srgb, var(--clr-gold) 8%, transparent);
+}
+
+.events-banner-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.events-banner-name {
+  font-weight: 700;
+  font-size: var(--text-md);
+  flex: 1;
+}
+
+.events-banner-effects {
+  font-size: var(--text-sm);
+  color: var(--clr-gold);
+  font-weight: 600;
+}
+
+.events-banner-timer {
+  font-size: var(--text-xs);
+  color: var(--clr-text-secondary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/* ── Event card ─────────────────────────────────────────────── */
+.event-card {
+  margin-bottom: var(--space-3);
+  transition: box-shadow 0.2s;
+}
+
+.event-card--active {
+  border-color: var(--clr-gold);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-gold) 20%, transparent);
+}
+
+.event-card--inactive {
+  opacity: 0.65;
+}
+
+.event-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.event-card-icon {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.event-card-titleblock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.event-card-name {
+  font-weight: 700;
+  font-size: var(--text-lg);
+}
+
+.event-card-desc {
+  font-size: var(--text-sm);
+  color: var(--clr-text-secondary);
+  margin: 0 0 var(--space-3);
+}
+
+/* Status badges */
+.event-status-live {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--clr-danger);
+  letter-spacing: 0.04em;
+}
+
+.event-status-upcoming {
+  font-size: var(--text-xs);
+  color: var(--clr-gold);
+}
+
+.event-status-inactive {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+}
+
+/* ── Effect tags ──────────────────────────────────────────── */
+.event-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.event-effect-tag {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--clr-gold) 15%, var(--clr-bg-3));
+  border: 1px solid color-mix(in srgb, var(--clr-gold) 35%, transparent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--clr-gold);
+  white-space: nowrap;
+}
+
+/* ── Objective bars ───────────────────────────────────────── */
+.event-objectives {
+  margin-bottom: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.event-objective {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-obj-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+}
+
+.event-obj-count {
+  color: var(--clr-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.event-obj-bar {
+  height: 6px;
+  background: var(--clr-bg-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.event-obj-bar-fill {
+  height: 100%;
+  background: var(--clr-success);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ── Reward row ───────────────────────────────────────────── */
+.event-reward {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.reward-pill {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--clr-success) 15%, var(--clr-bg-3));
+  border: 1px solid color-mix(in srgb, var(--clr-success) 30%, transparent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--clr-success);
+}

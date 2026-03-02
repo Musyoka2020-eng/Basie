@@ -11,8 +11,8 @@ import { eventBus }      from '../../core/EventBus.js';
 import { RES_META, fmt } from '../uiUtils.js';
 import { BUILDINGS_CONFIG, INVENTORY_ITEMS } from '../../entities/GAME_DATA.js';
 
-const TIER_COLORS = { 1: 'var(--clr-success)', 2: 'var(--clr-gold)', 3: 'var(--clr-danger)' };
-const TIER_LABELS = { 1: 'Tier 1 — Basic',     2: 'Tier 2 — Advanced', 3: 'Tier 3 — Elite' };
+const TIER_COLORS = { 1: 'var(--clr-success)', 2: 'var(--clr-gold)', 3: 'var(--clr-danger)', 4: 'var(--clr-primary)' };
+const TIER_LABELS = { 1: 'Tier 1 — Basic', 2: 'Tier 2 — Advanced', 3: 'Tier 3 — Elite', 4: 'Tier 4 — Military Mastery' };
 
 export class ResearchUI {
   /** @param {{ rm, tech, achievements, notifications }} systems */
@@ -193,7 +193,7 @@ export class ResearchUI {
     const snap    = this._s.rm.getSnapshot();
     const allTech = this._s.tech.getTechWithState();
 
-    [1, 2, 3].forEach(tier => {
+    [1, 2, 3, 4].forEach(tier => {
       const tierTechs = allTech.filter(t => t.tier === tier);
       if (!tierTechs.length) return;
 
@@ -255,6 +255,7 @@ export class ResearchUI {
 
     const card = document.createElement('div');
     card.className = cardClass;
+    card.dataset.techId = t.id;
 
     card.innerHTML = `
       <div class="card-header">
@@ -294,6 +295,24 @@ export class ResearchUI {
         this.render();
       }
     });
+
+    // ── Rich tooltip on card-title: current + next-level effect values ──
+    (() => {
+      const ttParts = [];
+      if (t.level > 0) {
+        ttParts.push(`<div class="tt-row tt-sub">✓ Lv.${t.level}: ${this._fmtEffects(t.effects, t.level)}</div>`);
+      }
+      if (!t.isMaxed) {
+        ttParts.push(`<div class="tt-row">↑ Lv.${t.level + 1}: ${this._fmtEffects(t.effects, t.level + 1)}</div>`);
+      }
+      if (!t.requirementsMet && t.requirementsReason) {
+        ttParts.push(`<div class="tt-sep"></div><div class="tt-row tt-muted">🔒 ${t.requirementsReason}</div>`);
+      }
+      if (ttParts.length) {
+        const head = `<div class="tt-title">${t.name}</div>`;
+        card.querySelector('.card-title').dataset.tooltipHtml = head + ttParts.join('');
+      }
+    })();
 
     return card;
   }

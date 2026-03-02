@@ -155,6 +155,32 @@ export const CAMPAIGNS_CONFIG = [
 ];
 
 /**
+ * Difficulty scaling applied on top of encounter modifiers in _simulateBattle().
+ * enemyHpMult / enemyAtkMult scale raw enemy wave stats.
+ * resourceRate multiplies all passive resource production rates.
+ */
+export const DIFFICULTY_MODIFIERS = {
+  easy:   { enemyHpMult: 0.7,  enemyAtkMult: 0.7,  resourceRate: 1.3  },
+  normal: { enemyHpMult: 1.0,  enemyAtkMult: 1.0,  resourceRate: 1.0  },
+  hard:   { enemyHpMult: 1.4,  enemyAtkMult: 1.3,  resourceRate: 0.85 },
+};
+
+/**
+ * Baseline monster template for Survival mode.
+ * Stats escalate by 5% per wave via CombatManager._survivalMult.
+ */
+export const SURVIVAL_MONSTER = {
+  id:          'survival_wave',
+  name:        'Survival Wave',
+  icon:        '🌊',
+  description: 'An endless escalating stream of enemies. How long can you hold?',
+  // Base wave — HP and attack are multiplied by _survivalMult each wave
+  baseWave: { name: 'Survival Enemies', hp: 350, attack: 18, count: 8 },
+  rewards: { money: 80, xp: 50 },
+  maxRewardedWins: Infinity,
+};
+
+/**
  * Random encounter modifiers that can be rolled when a player enters a stage.
  * Each modifier tweaks wave stats before _simulateBattle() runs.
  * chance: 0–1 probability that any given stage roll produces this modifier

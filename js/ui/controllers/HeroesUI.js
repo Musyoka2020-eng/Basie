@@ -35,7 +35,15 @@ export class HeroesUI {
     eventBus.on('heroes:updated',  () => this.render());
     eventBus.on('inventory:updated', () => this.render());
     eventBus.on('buffs:updated',   () => this._refreshBuffSection());
-    eventBus.on('hero:levelUp',    d => this._s.notifications?.show('success', '⚔️ Hero Level Up!', `${d.name} reached Lv.${d.level}!`));
+    eventBus.on('hero:levelUp',    d => {
+      this._s.notifications?.show('success', '⚔️ Hero Level Up!', `${d.name} reached Lv.${d.level}!`);
+      // Apply golden glow to the roster card for 2 s
+      const heroCard = document.querySelector(`.hero-roster-card[data-hero-id="${d.heroId ?? d.id}"]`);
+      if (heroCard) {
+        heroCard.classList.add('hero-glow');
+        setTimeout(() => heroCard.classList.remove('hero-glow'), 2000);
+      }
+    });
     eventBus.on('hero:awakened',   d => this._s.notifications?.show('success', '✨ Awakened!', `${d.name} is now ★${d.stars}!`));
     eventBus.on('buff:activated',  d => this._s.notifications?.show('success', '⛏️ Buff Active!', `+${(d.value * 100).toFixed(0)}% production for ${(d.durationMs / 60000).toFixed(0)}m`));
   }
@@ -125,6 +133,18 @@ export class HeroesUI {
     const selected = filtered.find(h => h.id === this._selectedHeroId);
     if (selected) {
       detailPane.innerHTML = this._buildDetailPanel(selected);
+
+      // Wire rich skill tooltips (replaces native browser title attribute)
+      detailPane.querySelectorAll('.hero-skill-slot[data-skill-id]').forEach(el => {
+        const skill = (selected.skills ?? []).find(s => s.id === el.dataset.skillId);
+        if (!skill) return;
+        const locked    = !skill.unlocked;
+        const typeLabel = skill.type === 'active' ? '⚡ Active' : '✨ Passive';
+        el.dataset.tooltipHtml = locked
+          ? `<div class="tt-title">${skill.icon ?? ''} ${skill.name}</div><div class="tt-row tt-sub">${typeLabel} · Unlocks at Lv.${skill.unlockLevel}</div><div class="tt-sep"></div><div class="tt-row tt-muted">${skill.description}</div>`
+          : `<div class="tt-title">${skill.icon ?? ''} ${skill.name}</div><div class="tt-row tt-sub">${typeLabel}</div><div class="tt-sep"></div><div class="tt-row">${skill.description}</div>`;
+      });
+
       this._bindDetailListeners(detailPane, selected);
     } else {
       detailPane.innerHTML = `<div class="heroes-detail-empty"><span class="heroes-detail-empty-icon">👈</span><p>Select a hero to manage them</p></div>`;
@@ -366,7 +386,7 @@ export class HeroesUI {
         const locked    = !skill.unlocked;
         return `
           <div class="hero-skill-slot ${locked ? 'hero-skill-slot--locked' : `hero-skill-slot--${skill.type}`}"
-               title="${locked ? `Unlocks at Lv.${skill.unlockLevel}` : skill.description}">
+               data-skill-id="${skill.id}">
             <span class="hero-skill-icon">${locked ? '🔒' : (skill.icon ?? typeIcon)}</span>
             <div class="hero-skill-info">
               <span class="hero-skill-name">${skill.name}</span>

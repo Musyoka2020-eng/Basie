@@ -1190,6 +1190,25 @@
   padding: 1px 8px;
 }
 
+.bld-slot-badge {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--clr-text-secondary);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  padding: 1px 8px;
+  margin-left: var(--space-1);
+}
+
+.bld-next-hint {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  font-style: italic;
+  margin-left: auto;
+  opacity: 0.8;
+}
+
 /* Empty grid state */
 .military-empty {
   grid-column: 1 / -1;
@@ -1937,6 +1956,7 @@
 .tier-cards-wrap {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  align-items: start;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
@@ -2063,11 +2083,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  margin-bottom: var(--space-2);
 }
 .tuc-cost .cost-chip { font-size: 10px; padding: 2px 6px; }
 
 .tuc-actions {
-  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -2103,7 +2123,58 @@
 .tuc-train-row .train-amount::-webkit-outer-spin-button,
 .tuc-train-row .train-amount::-webkit-inner-spin-button     { -webkit-appearance: none; }
 
-.tier-unit-card .btn-tier-upgrade { width: 100%; }
+.tuc-batch-hint {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  opacity: 0.75;
+  text-align: right;
+  margin-top: 2px;
+}
+
+/* Train / Upgrade mode toggle */
+.tuc-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.tuc-mode-btn {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: transparent;
+  color: var(--clr-text-muted);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.02em;
+}
+.tuc-mode-btn + .tuc-mode-btn {
+  border-left: 1px solid rgba(255,255,255,0.12);
+}
+.tuc-mode-btn--active {
+  background: rgba(139,92,246,0.25);
+  color: var(--clr-primary, #a78bfa);
+}
+.tuc-mode-btn:not(.tuc-mode-btn--active):hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--clr-text-primary);
+}
+
+/* Upgrade info bar */
+.tuc-upgrade-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  margin-bottom: var(--space-2);
+}
+.tuc-upgrade-info .cost-chip { margin: 0; }
 
 /* =============================================
  * HERO CLASSIFICATION BADGES
@@ -2152,6 +2223,24 @@
   transition: border-color 0.15s;
 }
 .squad-hero-slot-card:hover { border-color: rgba(255,255,255,0.14); }
+
+.squad-hero-slot-card--locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  justify-content: center;
+}
+.squad-hero-slot-card--locked:hover { border-color: rgba(255,255,255,0.08); }
+
+.slot-locked-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  color: var(--clr-text-muted);
+  font-size: var(--text-sm);
+}
+.slot-locked-icon { font-size: 1.1rem; }
+.slot-locked-label { font-style: italic; }
 
 /* Hero half */
 .slot-hero-half {
@@ -2428,6 +2517,12 @@
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .sut-tier-row:last-of-type { border-bottom: none; }
+.sut-cap-hint {
+  font-size: var(--text-xs);
+  color: var(--clr-text-muted);
+  opacity: 0.8;
+  padding: 2px 0 2px 2px;
+}
 .sut-tier-info {
   display: flex;
   align-items: center;
@@ -2559,3 +2654,98 @@
   border-color: rgba(124,58,237,0.5);
   background: rgba(124,58,237,0.12);
 }
+
+/* =============================================
+ * BARRACKS SQUAD SLOT INDICATORS
+ * ============================================= */
+.barracks-squad-slots {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.barracks-slot-info-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.barracks-boost-badge {
+  background: rgba(124,58,237,0.15);
+  border: 1px solid rgba(124,58,237,0.3);
+  color: #a78bfa;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 600;
+}
+
+.barracks-next-hint {
+  color: var(--clr-text-muted);
+}
+
+.barracks-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+.barracks-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255,255,255,0.08);
+  font-size: 10px;
+  text-align: center;
+  min-height: 48px;
+  cursor: default;
+  transition: background 0.15s;
+}
+
+.barracks-slot .slot-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+}
+
+.barracks-slot .slot-label,
+.barracks-slot .slot-lock {
+  font-size: 9px;
+  color: var(--clr-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.barracks-slot--active {
+  background: rgba(34,197,94,0.08);
+  border-color: rgba(34,197,94,0.25);
+}
+.barracks-slot--active .slot-num { color: #4ade80; }
+.barracks-slot--active .slot-label { color: var(--clr-text-primary); }
+
+.barracks-slot--available {
+  background: rgba(59,130,246,0.07);
+  border-color: rgba(59,130,246,0.2);
+  border-style: dashed;
+}
+.barracks-slot--available .slot-num { color: #60a5fa; }
+
+.barracks-slot--empty {
+  background: rgba(255,159,10,0.05);
+  border-color: rgba(255,159,10,0.15);
+  border-style: dashed;
+}
+
+.barracks-slot--locked {
+  background: rgba(0,0,0,0.15);
+  border-color: rgba(255,255,255,0.04);
+  opacity: 0.6;
+}
+.barracks-slot--locked .slot-lock { color: var(--clr-text-muted); }

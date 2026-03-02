@@ -430,6 +430,42 @@
   padding: 3px 0;
 }
 
+/* ── Diamond Package Cards ─────────────────────────── */
+.diamond-package-card {
+  border-color: rgba(99, 179, 237, 0.25);
+  background: linear-gradient(160deg, var(--surface-2, #252b3b), rgba(59,130,246,0.06));
+}
+
+.diamond-package-card:hover {
+  border-color: rgba(99, 179, 237, 0.5);
+}
+
+.diamond-pkg-icon {
+  font-size: 2.4rem;
+  margin-bottom: 2px;
+}
+
+.diamond-pkg-count {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #93c5fd;
+  letter-spacing: -0.01em;
+  margin: 2px 0;
+}
+
+.diamond-pkg-vip-note {
+  font-size: 0.68rem;
+  color: var(--clr-gold, #f59e0b);
+  margin-top: 4px;
+}
+
+.diamond-pkg-price {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-primary, #e8e8e8);
+  white-space: nowrap;
+}
+
 /* Success buy button override */
 .btn-success {
   background: var(--accent-green, #3ab06e);

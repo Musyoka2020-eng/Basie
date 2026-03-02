@@ -190,8 +190,18 @@ export const BUILDINGS_CONFIG = {
     maxLevel: 8,
     baseCost: { wood: 200, stone: 150 },
     costMultiplier: 1.9, buildTime: 30,
-    effects: { squadCapacity: 3 },
-    effectLabel: '🪖 +3 squad capacity per level · Holds 1 squad & up to 4 heroes',
+    effects: { squadSlots: true, moreSquads: true },
+    effectLabel: 'Each Barracks = 1 squad · Upgrade to increase per-slot unit capacity and unlock more slots (Lv.3 → 2nd · Lv.5 → 3rd · Lv.7 → 4th) · Build more Barracks via HQ (Lv.4 / 6 / 8)',
+    levelStats: [
+      { slotCapacity:   200 }, // Lv.1 — 1 slot open
+      { slotCapacity:   500 }, // Lv.2
+      { slotCapacity:   800 }, // Lv.3 — 2nd slot opens
+      { slotCapacity: 1200 }, // Lv.4
+      { slotCapacity: 1700 }, // Lv.5 — 3rd slot opens
+      { slotCapacity: 2300 }, // Lv.6
+      { slotCapacity: 3000 }, // Lv.7 — 4th slot opens
+      { slotCapacity: 4000 }, // Lv.8
+    ],
     category: 'military', requires: null,
     maxInstances: 4,
     instanceSlots: [
@@ -199,6 +209,13 @@ export const BUILDINGS_CONFIG = {
       { index: 1, condition: { townhall: 4 } },
       { index: 2, condition: { townhall: 6 } },
       { index: 3, condition: { townhall: 8 } },
+    ],
+    // Hero/unit pair rows inside each squad — gated by that barracks's upgrade level
+    squadSlots: [
+      { index: 0, condition: null },
+      { index: 1, condition: { barracks: 3 } },
+      { index: 2, condition: { barracks: 5 } },
+      { index: 3, condition: { barracks: 7 } },
     ],
     heroCapacity: 4,  // Can hold up to 4 heroes who lead the squad
   },
@@ -209,8 +226,18 @@ export const BUILDINGS_CONFIG = {
     baseCost: { wood: 200, stone: 100 },
     costMultiplier: 1.9, buildTime: 45,
     effects: {},
-    effectLabel: '🏹 Trains Ranged units · +5% training speed per level',
+    effectLabel: '🏹 Trains Ranged units · +5% training speed per level · Lv.3: 2 training slots · Lv.6: 3 slots',
     category: 'military', requires: { barracks: 1 },
+    trainingSlots: [
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 1, maxBatchSize:  25 }, // Lv.1
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 2, maxBatchSize:  50 }, // Lv.2
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 3, maxBatchSize:  75 }, // Lv.3
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 4, maxBatchSize: 100 }, // Lv.4
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 5, maxBatchSize: 125 }, // Lv.5
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 6, maxBatchSize: 150 }, // Lv.6
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 7, maxBatchSize: 175 }, // Lv.7
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 8, maxBatchSize: 200 }, // Lv.8
+    ],
     maxInstances: 1,
     instanceSlots: [{ index: 0, condition: null }],
     heroCapacity: 1,  // Can hold 1 hero
@@ -261,8 +288,20 @@ export const BUILDINGS_CONFIG = {
     baseCost: { wood: 300, stone: 200, iron: 50 },
     costMultiplier: 2.0, buildTime: 45,
     effects: {},
-    effectLabel: '⚔️ Trains Infantry units · +5% training speed per level',
+    effectLabel: '⚔️ Trains Infantry units · +5% training speed per level · Lv.3: 2 training slots · Lv.6: 3 slots · Lv.9: 4 slots',
     category: 'military', requires: { townhall: 2 },
+    trainingSlots: [
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 1, maxBatchSize:  25 }, // Lv.1
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 2, maxBatchSize:  50 }, // Lv.2
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 3, maxBatchSize:  75 }, // Lv.3
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 4, maxBatchSize: 100 }, // Lv.4
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 5, maxBatchSize: 125 }, // Lv.5
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 6, maxBatchSize: 150 }, // Lv.6
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 7, maxBatchSize: 175 }, // Lv.7
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 8, maxBatchSize: 200 }, // Lv.8
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier: 9, maxBatchSize: 225 }, // Lv.9
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier:10, maxBatchSize: 250 }, // Lv.10
+    ],
     maxInstances: 1,
     instanceSlots: [{ index: 0, condition: null }],
     heroCapacity: 1,
@@ -274,8 +313,20 @@ export const BUILDINGS_CONFIG = {
     baseCost: { wood: 400, stone: 300, iron: 100 },
     costMultiplier: 2.1, buildTime: 80,
     effects: {},
-    effectLabel: '🐴 Trains Cavalry units · +5% training speed per level',
+    effectLabel: '🐴 Trains Cavalry units · +5% training speed per level · Lv.3: 2 training slots · Lv.6: 3 slots · Lv.9: 4 slots',
     category: 'military', requires: { infantryhall: 3, townhall: 4 },
+    trainingSlots: [
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 1, maxBatchSize:  25 }, // Lv.1
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 2, maxBatchSize:  50 }, // Lv.2
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 3, maxBatchSize:  75 }, // Lv.3
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 4, maxBatchSize: 100 }, // Lv.4
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 5, maxBatchSize: 125 }, // Lv.5
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 6, maxBatchSize: 150 }, // Lv.6
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 7, maxBatchSize: 175 }, // Lv.7
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 8, maxBatchSize: 200 }, // Lv.8
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier: 9, maxBatchSize: 225 }, // Lv.9
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier:10, maxBatchSize: 250 }, // Lv.10
+    ],
     maxInstances: 1,
     instanceSlots: [{ index: 0, condition: null }],
     heroCapacity: 1,
@@ -287,8 +338,20 @@ export const BUILDINGS_CONFIG = {
     baseCost: { wood: 500, stone: 400, iron: 150 },
     costMultiplier: 2.2, buildTime: 120,
     effects: {},
-    effectLabel: '💣 Trains Siege units · +5% training speed per level',
+    effectLabel: '💣 Trains Siege units · +5% training speed per level · Lv.3: 2 training slots · Lv.6: 3 slots · Lv.9: 4 slots',
     category: 'military', requires: { workshop: 1, townhall: 5 },
+    trainingSlots: [
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 1, maxBatchSize:  25 }, // Lv.1
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 2, maxBatchSize:  50 }, // Lv.2
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 3, maxBatchSize:  75 }, // Lv.3
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 4, maxBatchSize: 100 }, // Lv.4
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 5, maxBatchSize: 125 }, // Lv.5
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 6, maxBatchSize: 150 }, // Lv.6
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 7, maxBatchSize: 175 }, // Lv.7
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 8, maxBatchSize: 200 }, // Lv.8
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier: 9, maxBatchSize: 225 }, // Lv.9
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier:10, maxBatchSize: 250 }, // Lv.10
+    ],
     maxInstances: 1,
     instanceSlots: [{ index: 0, condition: null }],
     heroCapacity: 1,
@@ -336,7 +399,7 @@ export const QUEUE_CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 export const HQ_UNLOCK_TABLE = {
   2: {
-    buildings: ['archeryrange', 'infantryhall'],
+    buildings: ['archeryrange', 'infantryhall', 'bank'],
     units:     ['infantry', 'ranged'],
     techs:     ['reinforced_lumber', 'improved_smelting'],
     benefits:  { productionBonus: 0.02, attackBonus: 0.00, defenseBonus: 0.00, storageBonus: 0.00 },
@@ -360,7 +423,7 @@ export const HQ_UNLOCK_TABLE = {
     benefits:  { productionBonus: 0.08, attackBonus: 0.04, defenseBonus: 0.03, storageBonus: 0.10 },
   },
   6: {
-    buildings: ['bank'],
+    buildings: [],
     units:     [],
     techs:     ['cavalry_mastery', 'infrastructure'],
     benefits:  { productionBonus: 0.10, attackBonus: 0.06, defenseBonus: 0.05, storageBonus: 0.15 },

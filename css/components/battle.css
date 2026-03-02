@@ -323,3 +323,62 @@
 @keyframes confettiFall {
   to { transform: translateY(600px) rotate(720deg); opacity: 0; }
 }
+
+/* ── Victory / defeat overlay banner ────────────────────────────── */
+@keyframes victoryBanner {
+  from { transform: translateY(-110%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.victory-banner {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9000;
+  padding: 0.6rem 2rem;
+  border-radius: var(--radius-lg, 12px);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  animation: victoryBanner 0.4s ease-out forwards;
+  background: linear-gradient(135deg, rgba(74,222,128,0.92), rgba(16,185,129,0.92));
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(16,185,129,0.5);
+}
+
+.victory-banner.defeat {
+  background: linear-gradient(135deg, rgba(239,68,68,0.92), rgba(185,28,28,0.92));
+  box-shadow: 0 4px 20px rgba(239,68,68,0.5);
+}
+
+/* ── Defeat shake on stage node ──────────────────────────────────── */
+@keyframes defeatShake {
+  0%,100% { transform: translateX(0); }
+  15%     { transform: translateX(-6px); }
+  30%     { transform: translateX(6px); }
+  45%     { transform: translateX(-5px); }
+  60%     { transform: translateX(5px); }
+  75%     { transform: translateX(-3px); }
+  90%     { transform: translateX(3px); }
+}
+
+.defeat-shake {
+  animation: defeatShake 0.5s ease-in-out;
+}
+
+/* ── Game mode banner (Sandbox / Survival) ───────────────────────── */
+.sandbox-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--clr-primary)18;
+  border: 1px solid var(--clr-primary)44;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--clr-primary);
+  font-weight: 500;
+}

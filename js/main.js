@@ -25,15 +25,19 @@ import { InventoryManager }    from './systems/InventoryManager.js';
 import { AchievementManager }  from './systems/AchievementManager.js';
 import { ChallengeManager }    from './systems/ChallengeManager.js';
 import { StoryManager }        from './systems/StoryManager.js';
+import { TutorialManager }     from './systems/TutorialManager.js';
+import { EventManager }        from './systems/EventManager.js';
 import { UIManager }           from './ui/UIManager.js';
 import { TimerService }        from './ui/TimerService.js';
 import { TooltipService }      from './ui/TooltipService.js';
+import { FirebaseDataManager, IS_CONFIGURED } from './core/FirebaseDataManager.js';
 
 // =============================================
 // INSTANTIATE SYSTEMS
 // =============================================
-const engine      = new GameEngine();
-const saveManager = new SaveManager();
+const engine              = new GameEngine();
+const saveManager         = new SaveManager();
+const firebaseDataManager = new FirebaseDataManager(saveManager);
 
 const userManager      = new UserManager();
 const resourceManager  = new ResourceManager();
@@ -54,11 +58,14 @@ inventoryManager.setBuildingManager(buildingManager);
 inventoryManager.setUnitManager(unitManager);
 inventoryManager.setTechnologyManager(techManager);
 unitManager.setTechnologyManager(techManager);
+buildingManager.setUnitManager(unitManager);
 const settingsManager  = new SettingsManager(saveManager);
 const marketManager    = new MarketManager(resourceManager);
-const achievementManager  = new AchievementManager(userManager, mailManager);
+const achievementManager  = new AchievementManager(userManager, mailManager, resourceManager, inventoryManager);
 const challengeManager    = new ChallengeManager(resourceManager, mailManager, inventoryManager);
 const storyManager = new StoryManager();
+const tutorialManager = new TutorialManager(userManager);
+const eventManager = new EventManager(resourceManager, mailManager);
 
 let soundManager;
 let notificationManager;
@@ -76,6 +83,9 @@ engine.registerSystem(mailManager);
 engine.registerSystem(heroManager);
 engine.registerSystem(marketManager);
 engine.registerSystem(challengeManager);
+engine.registerSystem(userManager);
+engine.registerSystem(achievementManager);
+engine.registerSystem(eventManager);
 
 // =============================================
 // SERIALIZATION
@@ -96,12 +106,16 @@ function getGameState() {
     achievements: achievementManager.serialize(),
     challenges:   challengeManager.serialize(),
     story:        storyManager.serialize(),
+    events:       eventManager.serialize(),
+    gameMode:     engine.gameMode,
     lastSavedTimestamp: Date.now(),
   };
 }
 
 function applyGameState(state) {
   if (!state) return;
+  // Restore game mode FIRST so all mode-dependent systems receive correct mode
+  if (state.gameMode) engine.setGameMode(state.gameMode);
   userManager.deserialize(state.user);
   resourceManager.deserialize(state.resources);
   buildingManager.deserialize(state.buildings);
@@ -116,79 +130,226 @@ function applyGameState(state) {
   achievementManager.deserialize(state.achievements);
   challengeManager.deserialize(state.challenges);
   storyManager.deserialize(state.story);
+  eventManager.deserialize(state.events);
+}
+
+// =============================================
+// NEW-GAME SETUP MODAL
+// =============================================
+/**
+ * Show the mode/difficulty picker whenever the player starts a brand-new game
+ * (no existing save).  Calls `onConfirm()` once the player clicks Begin.
+ * @param {Function} onConfirm - called after the player confirms their choices
+ */
+function _showNewGameSetupModal(onConfirm) {
+  const overlay = document.getElementById('modal-overlay');
+  const content = document.getElementById('modal-content');
+  if (!overlay || !content) { onConfirm(); return; }
+
+  let selectedMode = 'campaign';
+  let selectedDiff = settingsManager.get('difficulty') ?? 'normal';
+
+  const MODES = [
+    { id: 'campaign', label: '⚔️ Campaign',
+      desc: 'Follow the story. Fight through 10 stages and reach the endgame.' },
+    { id: 'survival', label: '🌊 Survival',
+      desc: 'Endless escalating waves. Earn a high score. No story progression.' },
+    { id: 'sandbox',  label: '🧪 Sandbox',
+      desc: 'Free resources, instant build/train/research. Experiment freely.' },
+  ];
+  const DIFFS = [
+    { id: 'easy',   label: '🟢 Easy',   tip: 'Enemies: −70% HP/ATK. Resource rate: +30%.' },
+    { id: 'normal', label: '🟡 Normal', tip: 'Balanced experience. Default setting.' },
+    { id: 'hard',   label: '🔴 Hard',   tip: 'Enemies: +40% HP / +30% ATK. Resource rate: −15%.' },
+  ];
+
+  const renderModeBtn = (m, active) =>
+    `<button class="btn ${active ? 'btn-primary' : 'btn-ghost'} newgame-mode-btn"
+      data-mode="${m.id}"
+      style="text-align:left;padding:var(--space-3);display:flex;flex-direction:column;gap:2px">
+      <span style="font-weight:700">${m.label}</span>
+      <span style="font-size:var(--text-xs);color:var(--clr-text-secondary)">${m.desc}</span>
+    </button>`;
+
+  const renderDiffBtn = (d, active) =>
+    `<button class="btn btn-sm ${active ? 'btn-primary' : 'btn-ghost'} newgame-diff-btn"
+      data-diff="${d.id}" title="${d.tip}" style="flex:1">${d.label}</button>`;
+
+  const buildHtml = () => `
+    <div class="modal-inner">
+      <div class="modal-top">
+        <div class="modal-icon">🏰</div>
+        <div class="modal-title-block">
+          <div class="modal-title">New Game</div>
+          <div class="modal-subtitle">Choose your play style and difficulty</div>
+        </div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">Game Mode</div>
+        <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+          ${MODES.map(m => renderModeBtn(m, m.id === selectedMode)).join('')}
+        </div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">Difficulty</div>
+        <div style="display:flex;gap:var(--space-2)">
+          ${DIFFS.map(d => renderDiffBtn(d, d.id === selectedDiff)).join('')}
+        </div>
+        <div style="font-size:var(--text-xs);color:var(--clr-text-muted);margin-top:var(--space-2)">
+          Difficulty can also be changed later in Settings.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary w-full" id="btn-newgame-confirm"
+          style="font-size:var(--text-md);padding:var(--space-3)">
+          Begin ${selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1)}
+        </button>
+      </div>
+    </div>`;
+
+  const rerender = () => {
+    content.innerHTML = buildHtml();
+    wireButtons();
+  };
+
+  const wireButtons = () => {
+    content.querySelectorAll('.newgame-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedMode = btn.dataset.mode;
+        rerender();
+      });
+    });
+    content.querySelectorAll('.newgame-diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedDiff = btn.dataset.diff;
+        rerender();
+      });
+    });
+    document.getElementById('btn-newgame-confirm')?.addEventListener('click', () => {
+      engine.setGameMode(selectedMode);
+      settingsManager.set('difficulty', selectedDiff);
+      overlay.classList.add('hidden');
+      content.innerHTML = '';
+      onConfirm();
+    });
+  };
+
+  content.innerHTML = buildHtml();
+  overlay.classList.remove('hidden');
+  wireButtons();
 }
 
 // =============================================
 // AUTH SCREEN
 // =============================================
-function initAuthScreen() {
-  const authScreen  = document.getElementById('auth-screen');
-  const gameShell   = document.getElementById('game-shell');
-  const loginTab    = document.getElementById('auth-login-tab');
-  const registerTab = document.getElementById('auth-register-tab');
-  const regFields   = document.getElementById('auth-register-fields');
-  const submitBtn   = document.getElementById('auth-submit');
-  const guestBtn    = document.getElementById('auth-guest');
-  const authError   = document.getElementById('auth-error');
-  let isLoginMode   = true;
+function _showAuthError(el, msg) {
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
 
-  loginTab.addEventListener('click', () => {
-    isLoginMode = true;
-    loginTab.classList.add('active');
-    registerTab.classList.remove('active');
-    regFields.classList.add('hidden');
-    submitBtn.textContent = 'Login';
-  });
+function _wireLoginForm(authScreen, gameShell, authForm, submitBtn, authError) {
+  const emailInput = document.getElementById('auth-email');
+  const savedEmail = localStorage.getItem('basie_has_account');
+  if (emailInput && savedEmail) emailInput.value = savedEmail;
 
-  registerTab.addEventListener('click', () => {
-    isLoginMode = false;
-    registerTab.classList.add('active');
-    loginTab.classList.remove('active');
-    regFields.classList.remove('hidden');
-    submitBtn.textContent = 'Create Account';
-  });
-
-  guestBtn.addEventListener('click', () => {
-    userManager.setGuest(true);
-    userManager.setUsername('Guest Commander');
-    launchGame(authScreen, gameShell);
-  });
-
-  // Firebase is not configured — hide login/register tabs and form fields,
-  // show a clear "playing as guest" banner instead.
-  const authForm   = document.getElementById('auth-form');
-  const authTabs   = document.querySelector('.auth-tabs');
-  const formInputs = authForm?.querySelectorAll('.form-group, #auth-submit');
-  formInputs?.forEach(el => el.style.display = 'none');
-  if (authTabs) authTabs.style.display = 'none';
-  if (regFields) regFields.classList.add('hidden');
-
-  // Add guest-mode info banner above the guest button
-  const guestBanner = document.createElement('div');
-  guestBanner.className = 'auth-guest-banner';
-  guestBanner.innerHTML = `
-    <p style="text-align:center;color:var(--clr-text-muted);margin:1rem 0 0.5rem;">
-      🎮 <strong>Playing as Guest</strong> — progress saved locally on this device.
-    </p>`;
-  guestBtn.parentElement?.insertBefore(guestBanner, guestBtn);
-
-  document.getElementById('auth-form')?.addEventListener('submit', e => {
+  authForm?.addEventListener('submit', async e => {
     e.preventDefault();
-    // Firebase not configured — fall through to guest mode
+    const email    = emailInput?.value.trim() ?? '';
+    const password = document.getElementById('auth-password')?.value ?? '';
+    if (authError) { authError.textContent = ''; authError.classList.add('hidden'); }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Signing in\u2026'; }
+
+    const result = await firebaseDataManager.signIn(email, password);
+    if (!result.success) {
+      _showAuthError(authError, result.reason);
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Login'; }
+      return;
+    }
+    userManager.setGuest(false);
+    userManager.setUsername(email);
+    const firebaseState = await firebaseDataManager.loadGameState();
+    launchGame(authScreen, gameShell, firebaseState);
+  });
+}
+
+function initAuthScreen() {
+  const authScreen = document.getElementById('auth-screen');
+  const gameShell  = document.getElementById('game-shell');
+  const submitBtn  = document.getElementById('auth-submit');
+  const guestBtn   = document.getElementById('auth-guest');
+  const authError  = document.getElementById('auth-error');
+  const authForm   = document.getElementById('auth-form');
+
+  const hasAccount = IS_CONFIGURED && !!localStorage.getItem('basie_has_account');
+
+  guestBtn?.addEventListener('click', () => {
     userManager.setGuest(true);
     userManager.setUsername('Guest Commander');
     launchGame(authScreen, gameShell);
   });
+
+  if (!hasAccount) {
+    // Hide form fields by default.
+    const formInputs = authForm?.querySelectorAll('.form-group, #auth-submit');
+    formInputs?.forEach(el => el.style.display = 'none');
+
+    const note = document.createElement('p');
+    note.className = 'auth-unavailable';
+    note.style.cssText = 'text-align:center;color:var(--clr-text-muted);margin:1rem 0 0.5rem;font-size:0.875rem;';
+    note.textContent = IS_CONFIGURED
+      ? 'No account yet \u2014 play as guest and create one from your profile.'
+      : 'Playing as guest \u2014 account creation unavailable.';
+    guestBtn?.parentElement?.insertBefore(note, guestBtn);
+
+    if (IS_CONFIGURED) {
+      // Escape hatch: user has an account but cache was cleared
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.textContent = 'Already have an account? Sign in';
+      toggle.style.cssText = [
+        'display:block;width:100%;margin-top:var(--space-2)',
+        'background:none;border:none;cursor:pointer',
+        'color:var(--clr-primary);font-size:var(--text-sm);text-align:center',
+        'text-decoration:underline;padding:var(--space-1) 0',
+      ].join(';');
+
+      toggle.addEventListener('click', () => {
+        // Show form, remove the note and toggle
+        formInputs?.forEach(el => el.style.display = '');
+        note.remove();
+        toggle.remove();
+        // Persist discovery so next load skips this step
+        if (!localStorage.getItem('basie_has_account')) {
+          localStorage.setItem('basie_has_account', '');
+        }
+        _wireLoginForm(authScreen, gameShell, authForm, submitBtn, authError);
+      });
+
+      guestBtn?.parentElement?.insertBefore(toggle, guestBtn);
+    } else {
+      authForm?.addEventListener('submit', e => { e.preventDefault(); });
+    }
+    return;
+  }
+
+  // \u2500\u2500 Firebase configured + account flag present \u2014 show login form directly
+  _wireLoginForm(authScreen, gameShell, authForm, submitBtn, authError);
 }
 
 // =============================================
 // LAUNCH
 // =============================================
-function launchGame(authScreen, gameShell) {
-  const savedState    = saveManager.load();
+function launchGame(authScreen, gameShell, externalState = null) {
+  const savedState    = externalState ?? saveManager.load();
   const lastTimestamp = savedState?.lastSavedTimestamp ?? null;
 
   applyGameState(savedState);
+
+  // Broadcast current settings so all managers (ResourceManager difficulty mult,
+  // CombatManager difficulty, etc.) pick up their initial values without waiting
+  // for a settings change event.
+  eventBus.emit('settings:changed', settingsManager.getSettings());
 
   authScreen.classList.add('hidden');
   gameShell.classList.remove('hidden');
@@ -211,16 +372,20 @@ function launchGame(authScreen, gameShell) {
     inventory:    inventoryManager,
     achievements:  achievementManager,
     challenges:    challengeManager,
+    events:        eventManager,
     notifications: notificationManager,
     sound:        soundManager,
     story:        storyManager,
+    tutorial:     tutorialManager,
+    firebase:             firebaseDataManager,
+    saveManager:          saveManager,
+    isFirebaseConfigured: IS_CONFIGURED,
   });
 
-  // Daily login check — fires once per calendar day
-  const loginResult = userManager.checkDailyLogin();
-  if (loginResult) {
-    setTimeout(() => ui.showDailyLoginModal(loginResult.day, loginResult.streak, loginResult.rewards), 1200);
-  }
+  // Restore VIP state: broadcasts computed tier from loaded save so all manager
+  // multipliers (train speed, research speed, production bonus) are applied before
+  // the offline simulation runs.
+  userManager.broadcastVipState();
 
   // Subscribe notification manager to achievement unlocks
   eventBus.on('achievement:unlocked', d => {
@@ -242,7 +407,11 @@ function launchGame(authScreen, gameShell) {
   // Remove temporary listeners
   offlineListeners.forEach(([evt, fn]) => eventBus.off(evt, fn));
 
-  if (offlineMs > 5000) {
+  // Suppress Welcome Back modal while tutorial is active — the tutorial blockers
+  // would prevent the player from closing it, causing a hard deadlock.
+  const suppressOfflineModal = !userManager.profile.hasCompletedTutorial;
+
+  if (!suppressOfflineModal && offlineMs > 5000) {
     const mins = Math.floor(offlineMs / 60000);
     const snap  = resourceManager.getSnapshot();
     const gainSummary = Object.entries(snap)
@@ -319,15 +488,40 @@ function launchGame(authScreen, gameShell) {
       buildingManager.enableAutomation('cafeteriaRestock');
     }
   });
+
+  // Wire one-time queue-slot purchases to the appropriate manager
+  eventBus.on('slot:purchased', ({ slotType }) => {
+    if (slotType === 'build')    buildingManager.grantShopBuildSlot();
+    if (slotType === 'research') techManager.grantShopResearchSlot();
+  });
   
   window.addEventListener('beforeunload', () => saveManager.save(getGameState()));
 
   new TimerService().init();
   new TooltipService().init();
 
-  engine.start();
+  // On first launch (no save), show the new-game setup modal, then start.
+  // On subsequent launches, start immediately.
+  const startEngine = () => {
+    // Daily login check — fires once per calendar day, after any setup modal is done
+    const loginResult = userManager.checkDailyLogin();
+    // Skip the login modal on first launch — it clashes with the tutorial
+    if (loginResult && userManager.profile.hasCompletedTutorial) {
+      setTimeout(() => ui.showDailyLoginModal(loginResult.day, loginResult.streak, loginResult.rewards), 600);
+    }
+    engine.start();
+    setTimeout(() => eventBus.emit('story:start'), 500);
+    // Tutorial — first-launch only
+    if (!userManager.profile.hasCompletedTutorial) {
+      setTimeout(() => eventBus.emit('tutorial:start'), 1200);
+    }
+  };
 
-  // Dev console helpers — accessible as window.game.*
+  if (!savedState) {
+    _showNewGameSetupModal(startEngine);
+  } else {
+    startEngine();
+  }
   window.game = {
     engine, resources: resourceManager, buildings: buildingManager,
     heroes: heroManager, inventory: inventoryManager, units: unitManager,
@@ -337,10 +531,8 @@ function launchGame(authScreen, gameShell) {
     load:       () => applyGameState(saveManager.load()),
     clearSave:  () => saveManager.clear?.(),
     challenges: challengeManager,
+    events:     eventManager,
   };
-
-  // Fire the story start trigger after the engine is running
-  setTimeout(() => eventBus.emit('story:start'), 500);
 
   console.log('[Basie] 🏰 Phase 4 launched!');
 }

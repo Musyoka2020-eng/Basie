@@ -5,9 +5,9 @@
  *
  * Categories: Hero Cards | XP Bundles | Resources | Buffs | Premium
  */
-import { eventBus }                         from '../../core/EventBus.js';
-import { SHOP_CONFIG, INVENTORY_ITEMS }     from '../../entities/GAME_DATA.js';
-import { fmt }                              from '../uiUtils.js';
+import { eventBus }                                         from '../../core/EventBus.js';
+import { SHOP_CONFIG, INVENTORY_ITEMS, DIAMOND_PACKAGES, VIP_TIERS } from '../../entities/GAME_DATA.js';
+import { fmt, openModal, closeModal }                        from '../uiUtils.js';
 
 const RARITY_META = {
   common:    { label: 'Common',    color: 'var(--clr-tier-common)' },
@@ -16,7 +16,7 @@ const RARITY_META = {
 };
 
 export class ShopUI {
-  /** @param {{ rm, inventory, notifications }} systems */
+  /** @param {{ rm, bm, tech, inventory, notifications, user }} systems */
   constructor(systems) {
     this._s       = systems;
     this._activeCategory = SHOP_CONFIG[0]?.id ?? 'heroes';
@@ -72,11 +72,91 @@ export class ShopUI {
     grid.innerHTML = '';
 
     for (const shopEntry of cat.items) {
-      const card = this._buildItemCard(shopEntry, money, diamond);
-      grid.appendChild(card);
+      let card;
+      if (shopEntry.diamondPackageId) {
+        const pkg = DIAMOND_PACKAGES.find(p => p.id === shopEntry.diamondPackageId);
+        card = pkg ? this._buildDiamondPackageCard(shopEntry, pkg) : null;
+      } else {
+        card = this._buildItemCard(shopEntry, money, diamond);
+      }
+      if (card) grid.appendChild(card);
     }
   }
 
+  // ── Diamond Package Cards ────────────────────────────────────────────────
+  _buildDiamondPackageCard(entry, pkg) {
+    const vipTier = this._s.user?.getVipTier() ?? 0;
+    const featured = entry.featured ? ' shop-item-featured' : '';
+
+    // Compute how much VIP progress this package would give
+    const spent    = this._s.user?.getProfile()?.stats?.diamondsSpent ?? 0;
+    const nextTier = VIP_TIERS.find(t => t.tier > vipTier);
+    const progressNote = nextTier
+      ? (spent + pkg.diamonds >= nextTier.threshold
+          ? `Spending brings you to ✅ ${nextTier.label}`
+          : `${(spent + pkg.diamonds).toLocaleString()} / ${nextTier.threshold.toLocaleString()} towards ${nextTier.label}`)
+      : '👑 Max VIP reached!';
+
+    const featuredBadge = entry.featured ? '<span class="shop-featured-badge">★ Best Value</span>' : '';
+
+    const card = document.createElement('div');
+    card.className = `shop-item-card diamond-package-card${featured}`;
+    card.innerHTML = `
+      ${featuredBadge}
+      <div class="shop-item-icon diamond-pkg-icon">${entry.icon}</div>
+      <div class="shop-item-info">
+        <div class="shop-item-name">${entry.label}</div>
+        <div class="diamond-pkg-count">💎 ${pkg.diamonds.toLocaleString()} Diamonds</div>
+        <div class="shop-item-desc">${entry.description}</div>
+        <div class="diamond-pkg-vip-note">${progressNote}</div>
+      </div>
+      <div class="shop-item-footer">
+        <span class="diamond-pkg-price">${pkg.displayPrice}</span>
+        <button class="btn btn-sm btn-primary diamond-buy-btn">Buy</button>
+      </div>`;
+
+    card.querySelector('.diamond-buy-btn')?.addEventListener('click', () => {
+      eventBus.emit('ui:click');
+      this._buyDiamondPackage(entry, pkg);
+    });
+
+    return card;
+  }
+
+  _buyDiamondPackage(_entry, pkg) {
+    openModal(`
+      <div class="modal-inner">
+        <div class="modal-top">
+          <div class="modal-icon">💎</div>
+          <div class="modal-title-block">
+            <div class="modal-title">Confirm Purchase</div>
+            <div class="modal-subtitle">Simulated — <strong style="color:var(--clr-warning)">no real charge</strong> is made.</div>
+          </div>
+          <button class="modal-close btn-ghost">✕</button>
+        </div>
+        <div style="text-align:center;padding:var(--space-5);background:var(--clr-bg-elevated);border-radius:var(--radius-lg)">
+          <div style="font-size:2.5rem">💎</div>
+          <div style="font-size:var(--text-xl);font-weight:700;color:var(--clr-primary-light);margin-top:var(--space-2)">${pkg.diamonds.toLocaleString()} Diamonds</div>
+          <div style="color:var(--clr-text-muted);font-size:var(--text-sm);margin-top:var(--space-1)">${pkg.displayPrice} (simulated)</div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost modal-close">Cancel</button>
+          <button class="btn btn-primary" id="confirm-diamond-buy">Confirm &amp; Receive Diamonds</button>
+        </div>
+      </div>`, () => {});
+
+    document.getElementById('confirm-diamond-buy')?.addEventListener('click', () => {
+      this._s.rm.add({ diamond: pkg.diamonds });
+      this._s.user?.spendDiamonds(pkg.diamonds);
+      closeModal();
+      this._s.notifications?.show('success', '💎 Diamonds Received!',
+        `${pkg.diamonds.toLocaleString()} Diamonds added to your account.`);
+      eventBus.emit('game:purchaseComplete', { packageId: pkg.id });
+      this.render();
+    }, { once: true });
+  }
+
+  // ── Standard Item Cards ──────────────────────────────────────────────────
   _buildItemCard(entry, money, diamond) {
     const comingSoon = entry.comingSoon === true;
 
@@ -104,8 +184,13 @@ export class ShopUI {
     const cfg2      = entry.itemId ? INVENTORY_ITEMS[entry.itemId] : null;
     const automations = this._s.bm?.getAutomations() ?? {};
     const isAutomationActive = cfg2?.type === 'automation' && automations[cfg2.automation] === true;
+    const isSlotPurchase = cfg2?.type === 'slot_purchase';
+    const slotAlreadyOwned = isSlotPurchase && (
+      (cfg2.slotType === 'build'    && this._s.bm?.isShopBuildSlotBought?.())  ||
+      (cfg2.slotType === 'research' && this._s.tech?.isShopResearchSlotBought?.())
+    );
     const qty       = entry.itemId ? this._s.inventory.getQuantity(entry.itemId) : 0;
-    const canAfford = !isAutomationActive && cost !== null && (currency === 'money' ? money >= cost : diamond >= cost);
+    const canAfford = !isAutomationActive && !slotAlreadyOwned && cost !== null && (currency === 'money' ? money >= cost : diamond >= cost);
 
     const rarityBadge = rarity
       ? `<span class="shop-rarity-badge" style="color:${RARITY_META[rarity]?.color ?? 'inherit'}">${RARITY_META[rarity]?.label ?? rarity}</span>`
@@ -140,9 +225,11 @@ export class ShopUI {
         ${costHtml}
         ${comingSoon
           ? `<button class="btn btn-sm btn-ghost" disabled>🔒 Coming Soon</button>`
-          : isAutomationActive
-            ? `<button class="btn btn-sm btn-ghost" disabled>✅ Active</button>`
-            : `<button class="btn btn-sm ${canAfford ? 'btn-gold' : 'btn-ghost'} shop-buy-btn"
+          : slotAlreadyOwned
+            ? `<button class="btn btn-sm btn-ghost" disabled>\u2705 Purchased</button>`
+            : isAutomationActive
+              ? `<button class="btn btn-sm btn-ghost" disabled>\u2705 Active</button>`
+              : `<button class="btn btn-sm ${canAfford ? 'btn-gold' : 'btn-ghost'} shop-buy-btn"
                data-item="${entry.itemId}" data-cost="${cost}"
                ${canAfford ? '' : 'disabled'}>
                Buy
@@ -196,8 +283,10 @@ export class ShopUI {
     const cfg = INVENTORY_ITEMS[entry.itemId];
     if (cfg?.type === 'automation') {
       eventBus.emit('automation:purchased', { automation: cfg.automation });
-      this._s.notifications?.show('success', '🤖 Automation Enabled!', `${cfg?.name ?? entry.itemId} is now active.`);
-    } else {
+      this._s.notifications?.show('success', '🤖 Automation Enabled!', `${cfg?.name ?? entry.itemId} is now active.`);    } else if (cfg?.type === 'slot_purchase') {
+      this._s.rm.add(cfg.bonus);
+      eventBus.emit('slot:purchased', { slotType: cfg.slotType });
+      this._s.notifications?.show('success', '\uD83C\uDFD7\uFE0F Slot Unlocked!', `${cfg.name} is now active. Bonus resources delivered!`);    } else {
       // Normal items go to inventory
       this._s.inventory.addItem(entry.itemId, 1);
       this._s.notifications?.show('success', '🛒 Purchased!', `${cfg?.name ?? entry.itemId} added to your inventory.`);

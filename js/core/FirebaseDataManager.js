@@ -25,7 +25,8 @@ const FIREBASE_CONFIG = {
   appId:             undefined,
 };
 
-const IS_CONFIGURED = Object.values(FIREBASE_CONFIG).every(v => v !== undefined);
+export const IS_CONFIGURED = Object.values(FIREBASE_CONFIG).every(v => v !== undefined);
+// export const IS_CONFIGURED = true; // ← comment out when real credentials are added
 
 // ─────────────────────────────────────────────
 // COLLECTION PATHS

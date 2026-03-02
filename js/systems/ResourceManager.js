@@ -4,11 +4,15 @@
  * Registered with the GameEngine and updated every tick.
  */
 import { eventBus } from '../core/EventBus.js';
+import { DIFFICULTY_MODIFIERS } from '../entities/GAME_DATA.js';
 
+// Starting amounts cover the full tutorial chain:
+// Lumbermill → Mine → Quarry → Barracks → HQ Lv2 → Infantry Hall
+// Total cost ≈ 1700 wood, 1080 stone, 70 iron.
 const DEFAULT_RESOURCES = {
-  wood:    { amount: 300, perSec: 0, cap: 5000  },
-  stone:   { amount: 200, perSec: 0, cap: 5000  },
-  iron:    { amount: 0,   perSec: 0, cap: 2000  },
+  wood:    { amount: 2000, perSec: 0, cap: 5000  },
+  stone:   { amount: 1500, perSec: 0, cap: 5000  },
+  iron:    { amount: 200,  perSec: 0, cap: 2000  },
   food:    { amount: 100, perSec: 0, cap: 1000  },
   water:   { amount: 200, perSec: 0, cap: 2000  },
   diamond: { amount: 20,  perSec: 0, cap: Infinity },
@@ -27,7 +31,28 @@ export class ResourceManager {
     this._lastActiveBuildings = [];
     /** Population is a pseudo-resource — not spent/earned like others. */
     this._population = { current: 0, cap: 0 };
+    // VIP perk: stacking all-production bonus
+    this._vipProductionBonus = 0;
+    // Difficulty production rate multiplier (from DIFFICULTY_MODIFIERS.resourceRate)
+    this._difficultyProductionMult = 1.0;
+    // Current game mode — needed for sandbox 10× add()
+    this._gameMode = 'campaign';
+    // Stacked temporary modifiers keyed by "<id>:<resourceType>"
+    // e.g. EventManager calls addModifier('iron', 2.0, 'double_iron_weekend')
+    this._modifiers = new Map();
     eventBus.on('resources:bonusChanged', b => { this._techBonuses = b || {}; });
+    eventBus.on('user:vipUpdate', ({ perks }) => {
+      this._vipProductionBonus = perks?.productionBonus ?? 0;
+      this._reapplyRates();
+    });
+    eventBus.on('settings:changed', s => {
+      if (s.difficulty) {
+        const mod = DIFFICULTY_MODIFIERS[s.difficulty] ?? DIFFICULTY_MODIFIERS.normal;
+        this._difficultyProductionMult = mod.resourceRate;
+        this._reapplyRates();
+      }
+    });
+    eventBus.on('game:modeChanged', ({ mode }) => { this._gameMode = mode; });
   }
 
   /**
@@ -131,6 +156,29 @@ export class ResourceManager {
       }
     }
 
+    // Apply VIP production bonus (tier 5: +5% all resources)
+    if (this._vipProductionBonus > 0) {
+      for (const key of Object.keys(this._resources)) {
+        this._resources[key].perSec *= (1 + this._vipProductionBonus);
+      }
+    }
+
+    // Apply difficulty production rate modifier (last — scales everything above)
+    if (this._difficultyProductionMult !== 1.0) {
+      for (const key of Object.keys(this._resources)) {
+        this._resources[key].perSec *= this._difficultyProductionMult;
+      }
+    }
+
+    // Apply stacked temporary modifiers (e.g. from EventManager)
+    if (this._modifiers.size > 0) {
+      for (const { resourceType, multiplier } of this._modifiers.values()) {
+        if (this._resources[resourceType] !== undefined) {
+          this._resources[resourceType].perSec *= multiplier;
+        }
+      }
+    }
+
     eventBus.emit('resources:ratesChanged', this.getSnapshot());
   }
 
@@ -180,15 +228,18 @@ export class ResourceManager {
 
   /**
    * Add resources to the player's stockpile.
+   * In Sandbox mode, every add() call yields 10× the requested amount.
    * @param {object} rewards e.g. { gold: 500, xp: 100 }
    */
   add(rewards) {
+    const mult = this._gameMode === 'sandbox' ? 10 : 1;
     for (const [key, amount] of Object.entries(rewards)) {
       if (this._resources[key] !== undefined) {
-        const cap = this._resources[key].cap;
+        const cap    = this._resources[key].cap;
+        const actual = amount * mult;
         this._resources[key].amount = cap === Infinity
-          ? this._resources[key].amount + amount
-          : Math.min(this._resources[key].amount + amount, cap);
+          ? this._resources[key].amount + actual
+          : Math.min(this._resources[key].amount + actual, cap);
       }
     }
     eventBus.emit('resources:added', rewards);
@@ -203,6 +254,33 @@ export class ResourceManager {
   setCap(resource, newCap) {
     if (this._resources[resource]) {
       this._resources[resource].cap = newCap;
+    }
+  }
+
+  // =============================================
+  // TEMPORARY MODIFIERS (events, buffs, etc.)
+  // =============================================
+  /**
+   * Register a temporary production multiplier for a single resource type.
+   * Key stored as "<id>:<resourceType>" to allow one event with multiple
+   * resource effects and proper removal by event id prefix.
+   * @param {string} resourceType  e.g. 'iron'
+   * @param {number} multiplier    e.g. 2.0 for double
+   * @param {string} id            unique source id, e.g. 'double_iron_weekend'
+   */
+  addModifier(resourceType, multiplier, id) {
+    this._modifiers.set(`${id}:${resourceType}`, { resourceType, multiplier });
+    this._reapplyRates();
+  }
+
+  /**
+   * Remove a temporary modifier by its full key "<id>:<resourceType>".
+   * @param {string} key  e.g. 'double_iron_weekend:iron'
+   */
+  removeModifier(key) {
+    if (this._modifiers.has(key)) {
+      this._modifiers.delete(key);
+      this._reapplyRates();
     }
   }
 

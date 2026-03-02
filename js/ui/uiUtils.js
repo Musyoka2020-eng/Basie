@@ -27,9 +27,13 @@ export function fmt(n) {
   return n.toLocaleString();
 }
 
+// Queue for modals that arrive while one is already open
+const _modalQueue = [];
+
 /**
  * Populate and show the shared modal overlay.
- * Wires the backdrop-click and .modal-close button to close automatically.
+ * If a modal is already visible the new one is queued and shown after the
+ * current one closes, preventing any modal from being silently overwritten.
  * @param {string} html
  * @param {Function} onClose - called when the modal is closed
  */
@@ -37,14 +41,20 @@ export function openModal(html, onClose = () => {}) {
   const overlay = document.getElementById('modal-overlay');
   const content = document.getElementById('modal-content');
   if (!overlay || !content) return;
+  // Another modal is visible — queue this one instead of overwriting
+  if (!overlay.classList.contains('hidden')) {
+    _modalQueue.push({ html, onClose });
+    return;
+  }
   content.innerHTML = html;
   overlay.classList.remove('hidden');
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(onClose); }, { once: true });
-  content.querySelector('.modal-close')?.addEventListener('click', () => closeModal(onClose));
+  content.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', () => closeModal(onClose)));
 }
 
 /**
  * Hide the shared modal overlay and clear its contents.
+ * After closing, opens the next queued modal (if any) with a brief delay.
  * @param {Function} onClose
  */
 export function closeModal(onClose = () => {}) {
@@ -53,4 +63,8 @@ export function closeModal(onClose = () => {}) {
   if (overlay) overlay.classList.add('hidden');
   if (content) content.innerHTML = '';
   onClose();
+  if (_modalQueue.length > 0) {
+    const next = _modalQueue.shift();
+    setTimeout(() => openModal(next.html, next.onClose), 100);
+  }
 }

@@ -8,6 +8,7 @@
  */
 import { eventBus } from '../../core/EventBus.js';
 import { RES_META, fmt } from '../uiUtils.js';
+import { VIP_TIERS } from '../../entities/GAME_DATA.js';
 
 export class NavigationUI {
   /**
@@ -61,6 +62,10 @@ export class NavigationUI {
       eventBus.emit('ui:click');
       eventBus.emit('ui:openSettings');
     });
+    document.getElementById('player-chip')?.addEventListener('click', () => {
+      eventBus.emit('ui:click');
+      eventBus.emit('ui:openProfile');
+    });
   }
 
   // ---- EVENT SUBSCRIPTIONS ----
@@ -90,6 +95,8 @@ export class NavigationUI {
       this._s.notifications?.show('warning', '🍽️ Food Running Low', 'Cafeteria supplies are critically low — population is shrinking!');
     });
     eventBus.on('challenges:updated', challenges => this._updateChallengesBadge(challenges));
+    eventBus.on('events:updated',     state      => this._updateEventsBadge(state));
+    eventBus.on('user:vipUpdate',     ()         => this._renderProfile(this._s.user.getProfile()));
   }
 
   // ---- RESOURCES ----
@@ -139,8 +146,22 @@ export class NavigationUI {
   _renderProfile(profile) {
     const nameEl  = document.getElementById('player-name');
     const levelEl = document.getElementById('player-level');
+    const badgeEl = document.getElementById('vip-badge');
     if (nameEl)  nameEl.textContent  = profile.username;
     if (levelEl) levelEl.textContent = `Lv. ${profile.level}`;
+    // VIP badge
+    if (badgeEl) {
+      const tier = this._s.user?.getVipTier() ?? 0;
+      if (tier > 0) {
+        const tierCfg = VIP_TIERS.find(t => t.tier === tier);
+        badgeEl.textContent     = `${tierCfg?.badge ?? '👑'} ${tierCfg?.label ?? `VIP ${tier}`}`;
+        badgeEl.title           = tierCfg?.description ?? '';
+        badgeEl.classList.remove('hidden');
+        badgeEl.dataset.vipTier = tier;
+      } else {
+        badgeEl.classList.add('hidden');
+      }
+    }
   }
 
   // ---- STATUS BAR ----
@@ -210,6 +231,15 @@ export class NavigationUI {
     const claimable  = challenges.filter(c => c.completed && !c.claimed).length;
     claimable > 0
       ? (badge.textContent = claimable > 99 ? '99+' : claimable, badge.classList.remove('hidden'))
+      : badge.classList.add('hidden');
+  }
+
+  // ---- EVENTS BADGE ----
+  _updateEventsBadge(state) {
+    const badge = document.getElementById('events-badge');
+    if (!badge) return;
+    state?.activeEvent
+      ? (badge.textContent = '!', badge.classList.remove('hidden'))
       : badge.classList.add('hidden');
   }
 }

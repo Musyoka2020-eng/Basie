@@ -66,6 +66,28 @@ export class SaveManager {
   }
 
   /**
+   * Return the parsed save object directly from localStorage without triggering
+   * the full load pipeline. Returns null if no save exists or parsing fails.
+   * @returns {object|null}
+   */
+  getLocalRawSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Returns true if a save game exists in localStorage.
+   * @returns {boolean}
+   */
+  hasSave() {
+    return !!localStorage.getItem(SAVE_KEY);
+  }
+
+  /**
    * Wipe all saved state (used by SettingsManager).
    */
   wipe() {

@@ -31,6 +31,27 @@ export class BuildingsUI {
     eventBus.on('building:automationEnabled',() => this.render());
     eventBus.on('tech:researched',           () => this.render());
     eventBus.on('heroes:updated',            () => this.render());
+    // Re-render on resource tick (throttled to 2 s) so affordability badges
+    // update live — critical while tutorial blockers prevent manual tab clicks.
+    this._tickThrottle = 0;
+    eventBus.on('resources:tick', () => {
+      const now = Date.now();
+      if (now - this._tickThrottle >= 2000) {
+        this._tickThrottle = now;
+        this.render();
+        // Let UIManager re-pin the spotlight ring after innerHTML replacement
+        eventBus.emit('buildings:rendered');
+      }
+    });
+    // Tutorial: switch category + type tabs to the requested building then re-render
+    eventBus.on('buildings:focusBuilding', id => {
+      const bType = this._s.bm.getBuildingTypesWithInstances().find(t => t.id === id);
+      if (bType) {
+        this._activeCat  = bType.category;
+        this._activeType = bType.id;
+        this.render();
+      }
+    });
   }
 
   // ─────────────────────────────────────────────
@@ -421,6 +442,7 @@ export class BuildingsUI {
 
     const card = document.createElement('div');
     card.className = `card building-card${isMaxed ? ' card-gold' : ''}${b.level > 0 ? ' card-primary' : ''}`;
+    card.dataset.bid = b.id;
     card.innerHTML = `
       <div class="card-header">
         <div class="card-icon">${b.icon}</div>
@@ -494,6 +516,39 @@ export class BuildingsUI {
       }
       this.render();
     });
+
+    // ── Rich tooltip on card header showing next-level stat delta + build time ──
+    (() => {
+      const ttParts = [];
+      if (!b.isMaxLevel) {
+        const numericEffects = Object.entries(b.effects ?? {}).filter(([, v]) => typeof v === 'number');
+        if (numericEffects.length && b.level > 0) {
+          numericEffects.forEach(([res, rate]) => {
+            const icon = RES_META[res]?.icon ?? res;
+            const cur  = +(rate * b.level).toFixed(1);
+            const nxt  = +(rate * (b.level + 1)).toFixed(1);
+            ttParts.push(`<div class="tt-row"><span class="tt-label">${icon} Rate</span><span>${cur}/s → <strong>${nxt}/s</strong></span></div>`);
+          });
+        }
+        if (b.storageCap) {
+          Object.entries(b.storageCap).forEach(([res, capPerLv]) => {
+            const icon = RES_META[res]?.icon ?? res;
+            const cur  = fmt(capPerLv * b.level);
+            const nxt  = fmt(capPerLv * (b.level + 1));
+            ttParts.push(`<div class="tt-row"><span class="tt-label">${icon} Cap</span><span>+${cur} → <strong>+${nxt}</strong></span></div>`);
+          });
+        }
+        if (b.nextLevelBuildTime) {
+          ttParts.push(`<div class="tt-row"><span class="tt-label">⏱ Build time</span><span>${fmt(b.nextLevelBuildTime)}s</span></div>`);
+        }
+      } else {
+        ttParts.push(`<div class="tt-row tt-muted">⭐ Maximum level reached</div>`);
+      }
+      if (ttParts.length) {
+        const head = `<div class="tt-title">${b.name}${!b.isMaxLevel ? ` → Lv.${nextLv}` : ''}</div>`;
+        card.querySelector('.card-header').dataset.tooltipHtml = head + ttParts.join('');
+      }
+    })();
 
     return card;
   }

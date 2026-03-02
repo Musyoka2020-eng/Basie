@@ -1,15 +1,16 @@
 /* =============================================
  * TOOLTIP SYSTEM
  * Driven by TooltipService.js.
- * Any element with [data-tooltip] gets a floating
- * panel positioned above it on hover.
+ * Elements with [data-tooltip] show plain-text tooltips.
+ * Elements with [data-tooltip-html] show rich HTML tooltips
+ * using the .tt-* helper classes below.
  * ============================================= */
 
 #game-tooltip {
   position: fixed;
   z-index: var(--z-tooltip);
   pointer-events: none;
-  max-width: 260px;
+  max-width: 300px;
   padding: var(--space-2) var(--space-3);
   background: var(--clr-bg-surface);
   border: 1px solid var(--clr-border);
@@ -46,6 +47,52 @@
   bottom: 100%;
   border-top-color: transparent;
   border-bottom-color: var(--clr-border);
+}
+
+/* =============================================
+ * RICH TOOLTIP HELPERS  (used with data-tooltip-html)
+ * .tt-title  — bold heading row
+ * .tt-row    — two-column key/value row
+ * .tt-label  — muted left-hand key
+ * .tt-sub    — italic supplementary text
+ * .tt-muted  — de-emphasised single row
+ * .tt-sep    — thin horizontal divider
+ * ============================================= */
+.tt-title {
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  margin-bottom: 4px;
+  font-size: var(--text-xs);
+}
+
+.tt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--clr-text-secondary);
+}
+
+.tt-label {
+  color: var(--clr-text-muted);
+  flex-shrink: 0;
+}
+
+.tt-sub {
+  color: var(--clr-text-muted);
+  font-style: italic;
+  justify-content: flex-start;
+}
+
+.tt-muted {
+  color: var(--clr-text-muted);
+  justify-content: flex-start;
+  font-size: var(--text-xs);
+}
+
+.tt-sep {
+  border-top: 1px solid var(--clr-border);
+  margin: 4px 0;
 }
 
 /* =============================================

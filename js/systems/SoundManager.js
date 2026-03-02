@@ -117,21 +117,44 @@ export class SoundManager {
     this._playTone(180, 0.06, 'sawtooth', 0.18);
   }
 
+  /** Achievement unlocked — ascending 5-note arpeggio, triangle wave */
+  achievement() {
+    const notes = [523, 659, 784, 1047, 1319]; // C5 E5 G5 C6 E6
+    notes.forEach((freq, i) => this._playTone(freq, 0.12, 'triangle', 0.18, i * 0.10));
+  }
+
+  /** Combat wave start — low sine thud ~120 Hz */
+  battle() {
+    this._playTone(120, 0.15, 'sine', 0.20);
+  }
+
+  /** Heal pulse — ascending minor third, sine */
+  heal() {
+    this._playTone(440, 0.12, 'sine', 0.15);
+    this._playTone(523, 0.14, 'sine', 0.15, 0.10);
+  }
+
   // =============================================
   // EVENT WIRING
   // =============================================
   _registerEvents() {
-    eventBus.on('building:completed',   () => this.complete());
-    eventBus.on('building:started',     () => this.confirm());
-    eventBus.on('unit:trained',         () => this.complete());
-    eventBus.on('combat:victory',       () => this.victory());
-    eventBus.on('combat:defeat',        () => this.defeat());
-    eventBus.on('quest:completed',      () => { this.victory(); });
-    eventBus.on('tech:researched',      () => this.complete());
-    eventBus.on('user:levelUp',         () => this.levelUp());
-    eventBus.on('resources:added',      () => this.coin());
-    eventBus.on('ui:click',             () => this.click());
-    eventBus.on('ui:error',             () => this.error());
+    eventBus.on('building:completed',          () => this.complete());
+    eventBus.on('building:started',            () => this.confirm());
+    eventBus.on('unit:trained',                () => this.complete());
+    eventBus.on('combat:victory',              () => this.victory());
+    eventBus.on('combat:defeat',               () => this.defeat());
+    eventBus.on('quest:completed',             () => { this.victory(); });
+    eventBus.on('tech:researched',             () => this.complete());
+    eventBus.on('user:levelUp',                () => this.levelUp());
+    eventBus.on('resources:added',             () => this.coin());
+    eventBus.on('ui:click',                    () => this.click());
+    eventBus.on('ui:error',                    () => this.error());
+    // New event wires
+    eventBus.on('achievement:unlocked',        () => this.achievement());
+    eventBus.on('hero:recruited',              () => this.confirm());
+    eventBus.on('market:traded',               () => this.coin());
+    eventBus.on('building:cafeteria:shortfall',() => this.error());
+    eventBus.on('combat:wave:start',           () => this.battle());
   }
 
   update(dt) { /* No tick needed */ }

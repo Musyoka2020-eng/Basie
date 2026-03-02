@@ -177,3 +177,30 @@
 }
 
 .mt-2 { margin-top: var(--space-2); }
+
+/* ── Hero level-up glow ──────────────────────────────────────────── */
+@keyframes heroLevelGlow {
+  0%,100% { box-shadow: none; }
+  50%     { box-shadow: 0 0 14px 4px rgba(255,200,50,0.75), 0 0 28px 8px rgba(255,200,50,0.30); }
+}
+
+.hero-glow {
+  animation: heroLevelGlow 1.2s ease-in-out infinite;
+}
+
+/* ── XP float on level-up ────────────────────────────────────────── */
+@keyframes xpFloat {
+  0%   { transform: translateY(0);     opacity: 1; }
+  100% { transform: translateY(-30px); opacity: 0; }
+}
+
+.xp-float {
+  position: fixed;
+  z-index: 9999;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--clr-gold, #f59e0b);
+  pointer-events: none;
+  animation: xpFloat 1.0s ease-out forwards;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}

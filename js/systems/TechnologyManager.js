@@ -31,6 +31,20 @@ export class TechnologyManager {
     this._queue = [];
     /** Extra premium-purchased queue slots */
     this._premiumQueueSlots = 0;
+    this._shopResearchSlotBought = false; // tracks one-time shop slot purchase
+    // VIP perk: stacking research time reduction + extra research slot at VIP VI
+    this._vipResearchMultiplier = 1.0;
+    eventBus.on('user:vipUpdate', ({ perks, deltaPerks, isInit }) => {
+      this._vipResearchMultiplier = 1 - Math.min(0.80, perks?.researchReduction ?? 0);
+      const slotsToAdd = isInit
+        ? (perks?.extraResearchSlots ?? 0)
+        : (deltaPerks?.extraResearchSlots ?? 0);
+      for (let i = 0; i < slotsToAdd; i++) this.addPremiumQueueSlot();
+    });
+
+    // Sandbox mode: near-instant research times
+    this._gameMode = 'campaign';
+    eventBus.on('game:modeChanged', ({ mode }) => { this._gameMode = mode; });
 
     for (const id of Object.keys(TECH_CONFIG)) {
       this._state.set(id, { level: 0, researchEndsAt: null, startedAt: null });
@@ -41,12 +55,17 @@ export class TechnologyManager {
   // Engine tick
   // ─────────────────────────────────────────────
 
-  update(_dt) {
+  update(dt) {
     if (!this._queue.length) return;
 
     const activeId = this._queue[0];
     const state    = this._state.get(activeId);
     if (!state?.researchEndsAt) return;
+
+    // Sandbox mode: advance research timer 100× faster
+    if (this._gameMode === 'sandbox') {
+      state.researchEndsAt -= dt * 99 * 1000;
+    }
 
     if (Date.now() >= state.researchEndsAt) {
       state.researchEndsAt = null;
@@ -164,6 +183,17 @@ export class TechnologyManager {
     eventBus.emit('tech:queueUpdated', this.getQueue());
   }
 
+  /** Whether the player has bought the shop research-queue expansion (slot 3). */
+  isShopResearchSlotBought() { return this._shopResearchSlotBought; }
+
+  /** One-time shop slot grant — sets the flag, increments premium counter, fires event. */
+  grantShopResearchSlot() {
+    if (this._shopResearchSlotBought) return;
+    this._shopResearchSlotBought = true;
+    this._premiumQueueSlots++;
+    eventBus.emit('tech:queueUpdated', this.getQueue());
+  }
+
   // ─────────────────────────────────────────────
   // Queries — used by UI
   // ─────────────────────────────────────────────
@@ -259,10 +289,11 @@ export class TechnologyManager {
       stateObj[id] = { level: s.level, researchEndsAt: s.researchEndsAt, startedAt: s.startedAt };
     }
     return {
-      state:             stateObj,
-      bonuses:           this._appliedBonuses,
-      queue:             [...this._queue],
-      premiumQueueSlots: this._premiumQueueSlots,
+      state:                  stateObj,
+      bonuses:                this._appliedBonuses,
+      queue:                  [...this._queue],
+      premiumQueueSlots:      this._premiumQueueSlots,
+      shopResearchSlotBought: this._shopResearchSlotBought,
     };
   }
 
@@ -282,6 +313,7 @@ export class TechnologyManager {
     this._appliedBonuses    = data.bonuses           ?? {};
     this._queue             = data.queue             ?? [];
     this._premiumQueueSlots = data.premiumQueueSlots ?? 0;
+    this._shopResearchSlotBought = data.shopResearchSlotBought ?? false;
     eventBus.emit('resources:bonusChanged', this._appliedBonuses);
   }
 
@@ -296,7 +328,7 @@ export class TechnologyManager {
     const state       = this._state.get(activeId);
     const cfg         = TECH_CONFIG[activeId];
     const targetLevel = state.level + 1;
-    const timeSec     = this._timeForLevel(cfg, targetLevel);
+    const timeSec     = Math.ceil(this._timeForLevel(cfg, targetLevel) * this._vipResearchMultiplier);
     const now         = Date.now();
     state.startedAt      = now;
     state.researchEndsAt = now + timeSec * 1000;

@@ -32,10 +32,13 @@ export class BuildingManager {
 
     /** @type {BuildQueueItem[]} */
     this._buildQueue = [];
-    this._premiumBuildSlots = 0;
+    this._premiumBuildSlots    = 0;
+    this._shopBuildSlotBought  = false; // tracks one-time shop slot purchase
+    this._vipBuildTimeReduction = 0;  // cumulative fractional reduction from VIP perks
 
     this._techBonuses = {};
     this._hm = null; // set after heroManager is constructed via setHeroManager()
+    this._um = null; // set after unitManager is constructed via setUnitManager()
 
     /** Population / cafeteria tick state */
     this._cafeteriaShortfall = false;
@@ -45,6 +48,17 @@ export class BuildingManager {
 
     eventBus.on('resources:bonusChanged', b => { this._techBonuses = b || {}; this._notifyRates(); });
     eventBus.on('population:updated',     () => this._notifyRates());
+    // VIP perk: stacking build time reduction + extra build slot at VIP III
+    eventBus.on('user:vipUpdate', ({ perks, deltaPerks, isInit }) => {
+      this._vipBuildTimeReduction = Math.min(0.80, perks?.buildTimeReduction ?? 0);
+      const slotsToAdd = isInit
+        ? (perks?.extraBuildSlots ?? 0)
+        : (deltaPerks?.extraBuildSlots ?? 0);
+      for (let i = 0; i < slotsToAdd; i++) this.addPremiumBuildSlot();
+    });
+    // Sandbox mode: near-instant build times
+    this._gameMode = 'campaign';
+    eventBus.on('game:modeChanged', ({ mode }) => { this._gameMode = mode; });
     this._notifyRates();
     this._recalculateAllCaps();
   }
@@ -58,6 +72,15 @@ export class BuildingManager {
     eventBus.on('heroes:updated', () => this._notifyRates());
   }
 
+  /**
+   * Wire the unit manager after construction (avoids circular dependency).
+   * Used to query training queue depths per building.
+   * @param {object} unitManager
+   */
+  setUnitManager(unitManager) {
+    this._um = unitManager;
+  }
+
   // ─────────────────────────────────────────────
   // Engine tick
   // ─────────────────────────────────────────────
@@ -65,6 +88,11 @@ export class BuildingManager {
   update(dt) {
     // ── Build queue tick ────────────────────────────────────────────
     const active = this._buildQueue[0];
+    // Sandbox mode: advance the timer 100× faster by subtracting 99/100 of the
+    // elapsed time from endsAt each tick (real dt still passes, so total = 100×).
+    if (active?.endsAt && this._gameMode === 'sandbox') {
+      active.endsAt -= dt * 99 * 1000;
+    }
     if (active?.endsAt && Date.now() >= active.endsAt) {
       const { buildingId, instanceIndex, pendingLevel } = active;
 
@@ -228,6 +256,9 @@ export class BuildingManager {
       const reduction = Math.min(0.80, this._techBonuses.buildTimeReduction);
       buildTimeSec = Math.max(1, Math.floor(buildTimeSec * (1 - reduction)));
     }
+    if (this._vipBuildTimeReduction > 0) {
+      buildTimeSec = Math.max(1, Math.floor(buildTimeSec * (1 - this._vipBuildTimeReduction)));
+    }
 
     if (!this._buildings.has(buildingId)) this._buildings.set(buildingId, []);
     const instArr = this._buildings.get(buildingId);
@@ -285,6 +316,17 @@ export class BuildingManager {
 
   /** Add a premium build slot (called on premium purchase). */
   addPremiumBuildSlot() {
+    this._premiumBuildSlots++;
+    eventBus.emit('building:queueUpdated', this.getBuildQueue());
+  }
+
+  /** Whether the player has bought the shop build-queue expansion (slot 3). */
+  isShopBuildSlotBought() { return this._shopBuildSlotBought; }
+
+  /** One-time shop slot grant — sets the flag, increments premium counter, fires event. */
+  grantShopBuildSlot() {
+    if (this._shopBuildSlotBought) return;
+    this._shopBuildSlotBought = true;
     this._premiumBuildSlots++;
     eventBus.emit('building:queueUpdated', this.getBuildQueue());
   }
@@ -363,6 +405,16 @@ export class BuildingManager {
   // ─────────────────────────────────────────────
 
   getMaxBuildSlots() { return this._getMaxBuildSlots(); }
+
+  /**
+   * Returns the number of training queue items (across all tiers) for a given
+   * training building. Delegates to UnitManager which owns the training queues.
+   * @param {string} buildingId
+   * @returns {number}
+   */
+  getBuildingQueueDepth(buildingId) {
+    return this._um?.getTrainingQueueDepthForBuilding(buildingId) ?? 0;
+  }
 
   getBuildSlotInfo() {
     const maxSlots = this._getMaxBuildSlots();
@@ -501,6 +553,17 @@ export class BuildingManager {
     return Math.max(0, ...instances.map(i => i.level ?? 0));
   }
 
+  /**
+   * Level of a specific building instance (e.g. 'barracks_1').
+   * Returns 0 if the instance doesn't exist or hasn't been built.
+   */
+  getInstanceLevelOf(instanceId) {
+    const last      = instanceId.lastIndexOf('_');
+    const buildingId = instanceId.substring(0, last);
+    const idx       = parseInt(instanceId.substring(last + 1), 10);
+    return this._buildings.get(buildingId)?.[idx]?.level ?? 0;
+  }
+
   /** Current HQ (townhall) level. */
   getHQLevel() {
     return this.getLevelOf('townhall');
@@ -596,9 +659,10 @@ export class BuildingManager {
     }
     return {
       buildings,
-      buildQueue:        [...this._buildQueue],
-      premiumBuildSlots: this._premiumBuildSlots,
-      automations:       { ...this._automations },
+      buildQueue:           [...this._buildQueue],
+      premiumBuildSlots:    this._premiumBuildSlots,
+      shopBuildSlotBought:  this._shopBuildSlotBought,
+      automations:          { ...this._automations },
     };
   }
 
@@ -630,6 +694,7 @@ export class BuildingManager {
       ...item,
     }));
     this._premiumBuildSlots = data.premiumBuildSlots ?? 0;
+    this._shopBuildSlotBought = data.shopBuildSlotBought ?? false;
     if (data.automations) {
       for (const [k, v] of Object.entries(data.automations)) {
         if (k in this._automations) this._automations[k] = v;

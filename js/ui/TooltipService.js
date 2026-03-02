@@ -1,12 +1,13 @@
 /**
  * TooltipService.js
  * Provides a JS-driven floating tooltip panel for any element that carries a
- * [data-tooltip] attribute.  A single `#game-tooltip` element is appended to
- * <body> and repositioned on each mouseover.  Future tutorial hint logic can
- * build on this by calling `TooltipService.showAt(text, x, y)` directly.
+ * [data-tooltip] or [data-tooltip-html] attribute.  A single `#game-tooltip`
+ * element is appended to <body> and repositioned on each mouseover.
  *
  * Usage:
- *   <button data-tooltip="Requires Town Hall Lv.3">...</button>
+ *   Plain text : <button data-tooltip="Requires Town Hall Lv.3">...</button>
+ *   Rich HTML  : <div data-tooltip-html="<strong>…</strong>">…</div>
+ *               (set via el.dataset.tooltipHtml = '…' in JS)
  *
  * Imported and initialised once in main.js.
  */
@@ -23,30 +24,40 @@ export class TooltipService {
     this._el = el;
 
     // Use event delegation on the document so dynamically-created elements
-    // with [data-tooltip] are handled without re-registering listeners.
+    // with [data-tooltip] or [data-tooltip-html] are handled without re-registering listeners.
     document.addEventListener('mouseover', e => {
-      const target = e.target.closest('[data-tooltip]');
+      const target = e.target.closest('[data-tooltip], [data-tooltip-html]');
       if (!target) return;
-      const text = target.dataset.tooltip;
+      const isHtml = 'tooltipHtml' in target.dataset;
+      const text   = isHtml ? target.dataset.tooltipHtml : target.dataset.tooltip;
       if (!text) return;
-      this._show(text, target);
+      this._show(text, target, isHtml);
     });
 
     document.addEventListener('mouseleave', e => {
       // Only hide when leaving an element that has a tooltip
-      if (e.target.closest?.('[data-tooltip]')) this._hide();
+      if (e.target.closest?.('[data-tooltip], [data-tooltip-html]')) this._hide();
     }, true /* capture so it fires before 'mouseover' on children */);
 
     document.addEventListener('mouseover', e => {
       // Hide when moving to an element that does NOT have a tooltip
-      if (!e.target.closest('[data-tooltip]')) this._hide();
+      if (!e.target.closest('[data-tooltip], [data-tooltip-html]')) this._hide();
     });
   }
 
-  /** Position and reveal the tooltip panel near the target element. */
-  _show(text, target) {
+  /**
+   * Position and reveal the tooltip panel near the target element.
+   * @param {string}  text   — plain text or HTML string
+   * @param {Element} target — triggering element
+   * @param {boolean} isHtml — when true, content is rendered as innerHTML
+   */
+  _show(text, target, isHtml = false) {
     const el = this._el;
-    el.textContent = text;
+    if (isHtml) {
+      el.innerHTML = text;
+    } else {
+      el.textContent = text;
+    }
     el.classList.remove('visible', 'flip');
     el.style.left = '-9999px'; el.style.top = '-9999px';
 

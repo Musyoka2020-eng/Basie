@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
   animationsEnabled: true,
   autoSave: true,
   theme: 'dark', // Currently only dark supported
+  difficulty: 'normal', // 'easy' | 'normal' | 'hard'
 };
 
 export class SettingsManager {
@@ -35,6 +36,9 @@ export class SettingsManager {
   }
 
   getSettings() { return { ...this._settings }; }
+
+  /** Get a single setting by key. */
+  get(key) { return this._settings[key]; }
 
   set(key, value) {
     if (key in this._settings) {

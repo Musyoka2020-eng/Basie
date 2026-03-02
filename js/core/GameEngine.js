@@ -19,6 +19,25 @@ export class GameEngine {
     this._accumulator = 0;
     // Emit tick:ui every 20 ticks (~1s) for live UI progress bar updates
     this._uiTickInterval = 20;
+
+    // Game mode: 'campaign' | 'survival' | 'sandbox'
+    // Selectable only at new-game time; stored in save state.
+    this._gameMode = 'campaign';
+  }
+
+  /** @returns {'campaign'|'survival'|'sandbox'} */
+  get gameMode() { return this._gameMode; }
+
+  /**
+   * Set the active game mode. Emits 'game:modeChanged'.
+   * @param {'campaign'|'survival'|'sandbox'} mode
+   */
+  setGameMode(mode) {
+    const valid = ['campaign', 'survival', 'sandbox'];
+    if (!valid.includes(mode)) return;
+    this._gameMode = mode;
+    eventBus.emit('game:modeChanged', { mode });
+    console.log(`[GameEngine] Game mode set to: ${mode}`);
   }
 
   /**

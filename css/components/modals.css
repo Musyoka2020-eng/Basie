@@ -122,6 +122,17 @@
   margin-top: var(--space-2);
 }
 
+/* Close buttons inside action rows behave as full-size ghost buttons, not icon squares */
+.modal-actions .modal-close {
+  width: auto;
+  height: auto;
+  font-size: var(--text-sm);
+  padding: var(--space-3) var(--space-5);
+  background: transparent;
+  color: var(--clr-text-secondary);
+  border: 1px solid var(--clr-border);
+}
+
 /* =============================================
  * INBOX / MAIL MODAL — TWO-PANE
  * ============================================= */

@@ -116,6 +116,21 @@ export const INVENTORY_ITEMS = {
     description: 'Automatically restocks your Cafeteria every 60 seconds using global reserves.',
     diamondCost: 0, automation: 'cafeteriaRestock', rarity: 'rare', singleUse: true,
   },
+  // ── Queue-Slot Expansions (one-time, purchasable by anyone) ───────────────
+  build_queue_expansion: {
+    id: 'build_queue_expansion', type: 'slot_purchase',
+    name: 'Build Queue Expansion', icon: '🏗️',
+    description: 'Permanently unlocks a 3rd simultaneous build slot. Bonus: 20 💎, 5 000 Food, 2 000 Gold.',
+    diamondCost: 0, rarity: 'legendary', slotType: 'build',
+    bonus: { diamond: 20, food: 5000, money: 2000 },
+  },
+  research_queue_expansion: {
+    id: 'research_queue_expansion', type: 'slot_purchase',
+    name: 'Research Queue Expansion', icon: '🔬',
+    description: 'Permanently unlocks a 3rd simultaneous research slot. Bonus: 20 💎, 5 000 Food, 2 000 Gold.',
+    diamondCost: 0, rarity: 'legendary', slotType: 'research',
+    bonus: { diamond: 20, food: 5000, money: 2000 },
+  },
   // ── Buffs ─────────────────────────────────────────────────────────────────
   buff_prod_sm: {
     id: 'buff_prod_sm', type: 'buff',
@@ -279,10 +294,87 @@ export const SHOP_CONFIG = [
     ],
   },
   {
-    id: 'premium', label: 'Premium', icon: '👑',
+    id: 'premium', label: 'Premium', icon: '💎',
     items: [
-      { itemId: null, label: 'Extra Build Slot', icon: '🏗️', description: 'Unlock an additional build queue slot.', goldCost: null, comingSoon: true },
-      { itemId: null, label: 'Rename Token',     icon: '✏️',  description: 'Change your commander name.',             goldCost: null, comingSoon: true },
+      { diamondPackageId: 'diamonds_100',  label: 'Starter Pack',    icon: '💎', description: '100 Diamonds — great for grabbing a speed-up.', displayPrice: '$0.99'  },
+      { diamondPackageId: 'diamonds_500',  label: 'Explorer Pack',   icon: '💎', description: '500 Diamonds — unlock extra queue slots & heroes.', displayPrice: '$4.99',  featured: true },
+      { diamondPackageId: 'diamonds_1000', label: 'Commander Pack',  icon: '💎', description: '1 000 Diamonds — VIP III perks await.', displayPrice: '$9.99'  },
+      { diamondPackageId: 'diamonds_2500', label: 'Warlord Pack',    icon: '💎', description: '2 500 Diamonds — VIP IV: powerful build & train bonuses.', displayPrice: '$19.99' },
+      { diamondPackageId: 'diamonds_5000', label: 'Conqueror Pack',  icon: '💎', description: '5 000 Diamonds — reach VIP V for max perks & +5% production.', displayPrice: '$39.99' },
+      { itemId: 'build_queue_expansion',    diamondCost: 800, featured: true },
+      { itemId: 'research_queue_expansion', diamondCost: 800 },
     ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DIAMOND PACKAGES
+// Used by ShopUI to render the "Buy Diamonds" section.
+// displayPrice is cosmetic only — no real charge is made (simulated purchase).
+// ─────────────────────────────────────────────────────────────────────────────
+export const DIAMOND_PACKAGES = [
+  { id: 'diamonds_100',  diamonds: 100,  displayPrice: '$0.99'  },
+  { id: 'diamonds_500',  diamonds: 500,  displayPrice: '$4.99'  },
+  { id: 'diamonds_1000', diamonds: 1000, displayPrice: '$9.99'  },
+  { id: 'diamonds_2500', diamonds: 2500, displayPrice: '$19.99' },
+  { id: 'diamonds_5000', diamonds: 5000, displayPrice: '$39.99' },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VIP TIERS
+// Earned by cumulative diamond spending (real or simulated store).
+// threshold: total diamonds spent to reach this tier.
+// perks are applied via EventBus user:vipUpdate in each manager.
+// ─────────────────────────────────────────────────────────────────────────────
+export const VIP_TIERS = [
+  {
+    tier: 1, threshold: 500,     label: 'VIP I',    badge: '⭐',
+    description: '-5% Build · Train · Research Time',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05 },
+  },
+  {
+    tier: 2, threshold: 2000,    label: 'VIP II',   badge: '⭐⭐',
+    description: '-5% Build · Train · Research Time',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05 },
+  },
+  {
+    tier: 3, threshold: 6000,    label: 'VIP III',  badge: '🥉',
+    description: '-5% All Times · +1 VIP Build Slot (Slot 4)',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05, extraBuildSlots: 1 },
+  },
+  {
+    tier: 4, threshold: 15000,   label: 'VIP IV',   badge: '🥈',
+    description: '-5% All Times · +2% All Production',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05, productionBonus: 0.02 },
+  },
+  {
+    tier: 5, threshold: 35000,   label: 'VIP V',    badge: '🥇',
+    description: '-5% All Times · +3% All Production',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05, productionBonus: 0.03 },
+  },
+  {
+    tier: 6, threshold: 80000,   label: 'VIP VI',   badge: '💠',
+    description: '-5% All Times · +1 VIP Research Slot (Slot 4)',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05, extraResearchSlots: 1 },
+  },
+  {
+    tier: 7, threshold: 180000,  label: 'VIP VII',  badge: '💎',
+    description: '-5% All Times · +5% All Production',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05, productionBonus: 0.05 },
+  },
+  {
+    tier: 8, threshold: 400000,  label: 'VIP VIII', badge: '🔮',
+    description: '-5% All Times',
+    perks: { buildTimeReduction: 0.05, trainReduction: 0.05, researchReduction: 0.05 },
+  },
+  {
+    tier: 9, threshold: 900000,  label: 'VIP IX',   badge: '👑',
+    description: '-10% All Times · +5% All Production',
+    perks: { buildTimeReduction: 0.10, trainReduction: 0.10, researchReduction: 0.10, productionBonus: 0.05 },
+  },
+  {
+    tier: 10, threshold: 2000000, label: 'VIP X',   badge: '🌟',
+    description: '-10% All Times · +5% All Production',
+    perks: { buildTimeReduction: 0.10, trainReduction: 0.10, researchReduction: 0.10, productionBonus: 0.05 },
   },
 ];

@@ -53,8 +53,10 @@ export class BarracksUI {
   _bindCreateSquadButton() {
     document.getElementById('btn-create-squad')?.addEventListener('click', () => {
       eventBus.emit('ui:click');
-      const num    = this._s.um.getSquads().length + 1;
-      const result = this._s.um.createSquad(`Squad ${num}`);
+      const num              = this._s.um.getSquads().length + 1;
+      const squadIdx         = this._s.um.getSquads().length;
+      const barracksInstId   = `barracks_${squadIdx}`;
+      const result = this._s.um.createSquad(`Squad ${num}`, barracksInstId);
       if (!result.success) {
         eventBus.emit('ui:error');
         this._s.notifications?.show('warning', 'Squad Limit Reached', result.reason);
@@ -97,6 +99,7 @@ export class BarracksUI {
 
       const card = document.createElement('div');
       card.className = `unit-card-reserve tier-${unit.tier ?? 1}`;
+      card.dataset.unitId = unit.id;
       card.innerHTML = `
         <div class="tier-badge">T${unit.tier ?? 1}</div>
         <div class="card-header">
@@ -191,17 +194,21 @@ export class BarracksUI {
 
     const squads    = this._s.um.getSquads();
     const maxSquads = this._s.um.getMaxSquads();
+    const bm        = this._s.um._bm;
 
     // Update squad cap display in header
     const capEl = document.getElementById('squad-cap-display');
     if (capEl) capEl.textContent = `${squads.length} / ${maxSquads} Squads`;
 
-    // Disable New button if at cap
+    // Disable New button if at cap or no barracks
     const newBtn = document.getElementById('btn-create-squad');
     if (newBtn) {
       const atCap = squads.length >= maxSquads;
-      newBtn.disabled = atCap;
-      newBtn.title = atCap ? 'Build another Barracks to unlock a new squad slot' : 'Create a new squad';
+      const noBarracks = maxSquads === 0;
+      newBtn.disabled = atCap || noBarracks;
+      newBtn.title = noBarracks
+        ? 'Build a Barracks first to create squads'
+        : atCap ? 'Build another Barracks to unlock a new squad slot' : 'Create a new squad';
     }
 
     squads.forEach((squad, idx) => {
@@ -218,6 +225,69 @@ export class BarracksUI {
       });
       squadsList.appendChild(btn);
     });
+
+    // ── Barracks squad slot indicators ───────────────────────────────────────
+    const slotsEl = document.getElementById('barracks-squad-slots');
+    if (!slotsEl || !bm) return;
+    slotsEl.innerHTML = '';
+
+    // Read slot config from BUILDINGS_CONFIG so it stays in sync with data
+    const BARRACKS_SLOTS = BUILDINGS_CONFIG['barracks']?.instanceSlots ?? [];
+    const barracksLevel  = bm.getLevelOf('barracks');
+    const barracksBuilt  = barracksLevel > 0;
+    // stat boost: +5% squad stats per barracks level
+    const boostPct = barracksLevel * 5;
+
+    const infoRow = document.createElement('div');
+    infoRow.className = 'barracks-slot-info-row';
+    if (barracksLevel > 0) {
+      // Find the next locked barracks instance to show the HQ hint
+      const nextLockedSlot = BARRACKS_SLOTS.find(s =>
+        s.condition && Object.entries(s.condition).some(([bId, lv]) => bm.getLevelOf(bId) < lv)
+      );
+      const nextReqLevel = nextLockedSlot ? Object.values(nextLockedSlot.condition)[0] : null;
+      const nextSlotNum  = nextLockedSlot ? nextLockedSlot.index + 1 : null;
+      infoRow.innerHTML = `
+        <span class="barracks-boost-badge">⚔️ +${boostPct}% squad stats</span>
+        ${nextReqLevel ? `<span class="barracks-next-hint">HQ Lv.${nextReqLevel} unlocks barracks slot ${nextSlotNum}</span>` : ''}`;
+    }
+    slotsEl.appendChild(infoRow);
+
+    const slotsGrid = document.createElement('div');
+    slotsGrid.className = 'barracks-slots-grid';
+    BARRACKS_SLOTS.forEach(({ index, condition }) => {
+      const conditionMet = !condition || Object.entries(condition).every(([bId, lv]) => bm.getLevelOf(bId) >= lv);
+      const isOccupied   = squads.length > index;
+      const reqLevel     = condition ? Object.values(condition)[0] : null;
+      const reqLabel     = reqLevel ? `HQ Lv.${reqLevel}` : null;
+
+      const slot = document.createElement('div');
+      if (!barracksBuilt) {
+        if (!condition) {
+          slot.className = 'barracks-slot barracks-slot--empty';
+          slot.title = 'Build a Barracks to unlock your first squad slot';
+          slot.innerHTML = `<span class="slot-num">${index + 1}</span><span class="slot-label">Build Barracks</span>`;
+        } else {
+          slot.className = 'barracks-slot barracks-slot--locked';
+          slot.title = `${reqLabel} required to unlock slot ${index + 1}`;
+          slot.innerHTML = `<span class="slot-num">${index + 1}</span><span class="slot-lock">🔒 ${reqLabel}</span>`;
+        }
+      } else if (!conditionMet) {
+        slot.className = 'barracks-slot barracks-slot--locked';
+        slot.title = `${reqLabel} required to unlock slot ${index + 1}`;
+        slot.innerHTML = `<span class="slot-num">${index + 1}</span><span class="slot-lock">🔒 ${reqLabel}</span>`;
+      } else if (isOccupied) {
+        slot.className = 'barracks-slot barracks-slot--active';
+        slot.title = `Slot ${index + 1}: ${squads[index]?.name ?? 'Squad'}`;
+        slot.innerHTML = `<span class="slot-num">${index + 1}</span><span class="slot-label">${squads[index]?.name ?? 'Squad'}</span>`;
+      } else {
+        slot.className = 'barracks-slot barracks-slot--available';
+        slot.title = `Slot ${index + 1}: available — create a new squad`;
+        slot.innerHTML = `<span class="slot-num">${index + 1}</span><span class="slot-label">Available</span>`;
+      }
+      slotsGrid.appendChild(slot);
+    });
+    slotsEl.appendChild(slotsGrid);
   }
 
   _renderSquadPanel(squadId) {
@@ -308,7 +378,16 @@ export class BarracksUI {
 
   // ---- HERO SLOTS ----
   _buildHeroSlotsSection(squadId, barracksInstanceId) {
-    const MAX_SLOTS = BUILDINGS_CONFIG['barracks']?.heroCapacity ?? 4;
+    const squadSlots    = BUILDINGS_CONFIG['barracks']?.squadSlots ?? [];
+    const MAX_SLOTS     = squadSlots.length || 4;
+    const bm            = this._s.um._bm;
+    const barracksLevel = bm
+      ? (bm.getInstanceLevelOf?.(barracksInstanceId) ?? bm.getLevelOf('barracks'))
+      : 1;
+    const _levelStats   = BUILDINGS_CONFIG['barracks']?.levelStats ?? [];
+    const slotCapacity  = barracksLevel > 0 && _levelStats.length > 0
+      ? (_levelStats[Math.min(barracksLevel - 1, _levelStats.length - 1)]?.slotCapacity ?? Infinity)
+      : Infinity;
     const heroes = this._s.heroes;
     const section = document.createElement('div');
     section.className = 'squad-hero-section';
@@ -328,6 +407,26 @@ export class BarracksUI {
     const slotUnitLinks = squad?.slotUnitLinks ?? new Map();
 
     for (let i = 0; i < MAX_SLOTS; i++) {
+      // Check if this hero/unit row is unlocked by the barracks's current level
+      const slotCfg      = squadSlots[i];
+      const condition    = slotCfg?.condition ?? null;
+      const slotUnlocked = !condition || Object.entries(condition).every(([bId, lv]) =>
+        (bId === 'barracks' ? barracksLevel : (bm ? bm.getLevelOf(bId) : 0)) >= lv
+      );
+
+      if (!slotUnlocked) {
+        const reqLevel = condition ? Object.values(condition)[0] : null;
+        const locked   = document.createElement('div');
+        locked.className = 'squad-hero-slot-card squad-hero-slot-card--locked';
+        locked.innerHTML = `
+          <div class="slot-locked-content">
+            <span class="slot-locked-icon">🔒</span>
+            <span class="slot-locked-label">Upgrade Barracks to Lv.${reqLevel}</span>
+          </div>`;
+        section.appendChild(locked);
+        continue;
+      }
+
       // Hero is looked up by slotIndex — fully independent of unit assignment
       const hero     = allHeroesHere.find(h => h.assignment?.slotIndex === i) ?? null;
       const heroCfg  = hero ? HEROES_CONFIG[hero.heroId] : null;
@@ -387,8 +486,9 @@ export class BarracksUI {
         const chipHtml = isEffective
           ? '<span class="slot-effectiveness-chip slot-effectiveness-chip--effective">✦ Effective</span>'
           : hero ? '<span class="slot-effectiveness-chip slot-effectiveness-chip--neutral">↗ Neutral</span>' : '';
+        const capDisplay = isFinite(slotCapacity) ? ` / ${slotCapacity.toLocaleString()}` : '';
         const tierPill = slotUnit
-          ? `<span class="slot-unit-tier-pill"><span class="slot-unit-tier-num">T${slotUnit.tier}</span> ${slotUnit.name} ×${slotUnit.count}</span>`
+          ? `<span class="slot-unit-tier-pill"><span class="slot-unit-tier-num">T${slotUnit.tier}</span> ${slotUnit.name} ×${slotUnit.count}${capDisplay}</span>`
           : '';
         unitHalf.innerHTML = `
           <div class="slot-unit-icon">${linkedUnitCfg.icon}</div>
@@ -556,6 +656,18 @@ export class BarracksUI {
         .filter(u => u.unitId === unitType && u.count > 0)
         .sort((a, b) => b.tier - a.tier);
 
+      // Slot capacity for this specific barracks instance
+      const _squadData = this._s.um?.getSquad(squadId);
+      const _bm        = this._s.um?._bm;
+      const _bldgCfg   = BUILDINGS_CONFIG['barracks'];
+      const _instId    = _squadData?.barracksInstanceId;
+      const _bldgLvl   = _instId
+        ? (_bm?.getInstanceLevelOf?.(_instId) ?? _bm?.getLevelOf?.('barracks') ?? 0)
+        : (_bm?.getLevelOf?.('barracks') ?? 0);
+      const _lvStats   = _bldgCfg?.levelStats?.[Math.min(_bldgLvl - 1, (_bldgCfg?.levelStats?.length ?? 1) - 1)];
+      const _slotCap   = _lvStats?.slotCapacity ?? Infinity;
+      const _curSlotUnit = this._s.um?.getSlotUnit(squadId, slotIndex);
+
       const nav = document.createElement('div');
       nav.className = 'sut-nav';
       const backBtn = document.createElement('button');
@@ -594,12 +706,22 @@ export class BarracksUI {
 
           let step = 1;
 
+          const _existingCount = (_curSlotUnit?.unitId === unitType && _curSlotUnit?.tier === u.tier) ? _curSlotUnit.count : 0;
+          const _maxAssignable = Math.max(0, Math.min(u.count, isFinite(_slotCap) ? _slotCap - _existingCount : u.count));
+
           const input = document.createElement('input');
-          input.type = 'number'; input.className = 'sq-transfer-amt'; input.value = '1'; input.min = '1'; input.max = String(u.count);
+          input.type = 'number'; input.className = 'sq-transfer-amt'; input.value = _maxAssignable > 0 ? '1' : '0'; input.min = '1'; input.max = String(_maxAssignable);
 
-          const clamp = val => Math.min(u.count, Math.max(1, val));
+          const clamp = val => Math.min(_maxAssignable, Math.max(1, val));
 
-          [1, 5, 10, 25].filter(n => n === 1 || n <= u.count).forEach(n => {
+          if (isFinite(_slotCap)) {
+            const capRow = document.createElement('div');
+            capRow.className = 'sut-cap-hint';
+            capRow.textContent = `Slot: ${_existingCount} / ${_slotCap.toLocaleString()} units${_maxAssignable <= 0 ? ' — full' : ''}`;
+            row.appendChild(capRow);
+          }
+
+          [1, 5, 10, 25].filter(n => n === 1 || n <= _maxAssignable).forEach(n => {
             const chip = document.createElement('button');
             chip.className = 'sut-qty-chip' + (n === 1 ? ' sut-qty-chip--active' : '');
             chip.textContent = `×${n}`;
@@ -615,7 +737,7 @@ export class BarracksUI {
           const maxChip = document.createElement('button');
           maxChip.className = 'sut-qty-chip sut-qty-chip--max';
           maxChip.textContent = 'Max';
-          maxChip.addEventListener('click', e => { e.stopPropagation(); input.value = u.count; });
+          maxChip.addEventListener('click', e => { e.stopPropagation(); input.value = _maxAssignable; });
           multiplierRow.appendChild(maxChip);
 
           const controls = document.createElement('div');
