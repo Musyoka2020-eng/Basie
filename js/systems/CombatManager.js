@@ -102,7 +102,7 @@ export class CombatManager {
 
     if (result.victory) {
       if (!isSurvival) this._victoryCounts[monsterId] = victoryCount + 1;
-      this._rm.add(rewards);
+      // Resources delivered via mail attachment — MailManager hears combat:victory below.
       this._user.addXP(rewards.xp ?? 0);
       this._hm?.awardBattleXP(Math.floor((monster.rewards.xp ?? 100) * 0.5), squadId);
       eventBus.emit('combat:victory', { monsterId, rewards, losses: result.losses, reducedReward: isReduced });

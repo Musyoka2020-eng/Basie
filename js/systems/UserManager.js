@@ -129,17 +129,14 @@ export class UserManager {
     const streak = this._profile.loginStreak;
 
     // Milestone every 30 consecutive days
-    let rewards;
-    if (streak % 30 === 0) {
-      rewards = { ...DAILY_LOGIN_MILESTONE };
-    } else {
-      const dayIndex = ((streak - 1) % DAILY_LOGIN_REWARDS.length);
-      rewards = { ...DAILY_LOGIN_REWARDS[dayIndex].rewards };
-    }
+    const dayIndex = (streak - 1) % DAILY_LOGIN_REWARDS.length;
+    const day      = dayIndex + 1;
+    const rewards  = streak % 30 === 0
+      ? DAILY_LOGIN_MILESTONE
+      : DAILY_LOGIN_REWARDS[dayIndex].rewards;
 
-    const day = ((streak - 1) % DAILY_LOGIN_REWARDS.length) + 1;
     const payload = { day, streak, rewards };
-    eventBus.emit('user:dailyLogin', payload);
+    eventBus.emit('dailyLogin:claimed', payload);
     return payload;
   }
 

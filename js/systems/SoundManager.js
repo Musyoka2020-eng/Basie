@@ -134,6 +134,12 @@ export class SoundManager {
     this._playTone(523, 0.14, 'sine', 0.15, 0.10);
   }
 
+  /** Short two-tone reward chime — plays on item/resource grant. */
+  playChime() {
+    this._playTone(880,  0.08, 'sine', 0.18);
+    this._playTone(1100, 0.12, 'sine', 0.18, 0.08);
+  }
+
   // =============================================
   // EVENT WIRING
   // =============================================

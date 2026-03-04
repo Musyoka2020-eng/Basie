@@ -85,3 +85,31 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ─────────────────────────────────────────────
+ * Reward float animation (Group 4)
+ * Floating cards appear near the inventory icon whenever items are granted
+ * via grantRewards() (daily login, achievements, challenge completions).
+ * ───────────────────────────────────────────── */
+@keyframes reward-pop {
+  0%   { transform: scale(0)   translateY(0);     opacity: 0; }
+  30%  { transform: scale(1.2) translateY(0);     opacity: 1; }
+  55%  { transform: scale(1)   translateY(0);     opacity: 1; }
+  100% { transform: scale(0.9) translateY(-64px); opacity: 0; }
+}
+
+.reward-float-card {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;          /* never blocks clicks beneath */
+  background: var(--clr-surface-2, #1e1e2e);
+  border: 1px solid var(--clr-gold, #f4c430);
+  border-radius: var(--radius-lg, 12px);
+  color: var(--clr-gold, #f4c430);
+  font-size: var(--text-sm, 0.8rem);
+  font-weight: 700;
+  padding: 4px 10px;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  animation: reward-pop 1.5s ease-out forwards;
+}

@@ -23,11 +23,13 @@ export class EventManager {
   /**
    * @param {import('./ResourceManager.js').ResourceManager} resourceManager
    * @param {import('./MailManager.js').MailManager}         mailManager
+   * @param {import('./InventoryManager.js').InventoryManager} inventoryManager
    */
-  constructor(resourceManager, mailManager) {
+  constructor(resourceManager, mailManager, inventoryManager) {
     this.name   = 'EventManager';
     this._rm    = resourceManager;
     this._mail  = mailManager;
+    this._inv   = inventoryManager;
 
     /** Id of the currently active event, or null. */
     this._activeEventId = null;
@@ -147,7 +149,12 @@ export class EventManager {
     if (!allDone) return;
 
     this._claimedEventIds.add(eventId);
-    if (cfg.reward) this._rm.add(cfg.reward);
+    if (cfg.reward && this._inv) {
+      const rewardArray = Object.entries(cfg.reward)
+        .filter(([, v]) => v > 0)
+        .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+      if (rewardArray.length) this._inv.grantRewards(rewardArray);
+    }
     eventBus.emit('events:rewardClaimed', { eventId });
     eventBus.emit('events:updated', this.getPublicState());
   }

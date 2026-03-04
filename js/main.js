@@ -65,7 +65,10 @@ const achievementManager  = new AchievementManager(userManager, mailManager, res
 const challengeManager    = new ChallengeManager(resourceManager, mailManager, inventoryManager);
 const storyManager = new StoryManager();
 const tutorialManager = new TutorialManager(userManager);
-const eventManager = new EventManager(resourceManager, mailManager);
+const eventManager = new EventManager(resourceManager, mailManager, inventoryManager);
+
+// Wire InventoryManager into MailManager so mail attachment claims go to inventory
+mailManager.setInventoryManager(inventoryManager);
 
 let soundManager;
 let notificationManager;
@@ -411,6 +414,10 @@ function launchGame(authScreen, gameShell, externalState = null) {
   // would prevent the player from closing it, causing a hard deadlock.
   const suppressOfflineModal = !userManager.profile.hasCompletedTutorial;
 
+  // Will be set to a function if there is offline progress worth showing.
+  // Scheduled in startEngine() so it never races the daily login modal.
+  let _showOfflineModal = null;
+
   if (!suppressOfflineModal && offlineMs > 5000) {
     const mins = Math.floor(offlineMs / 60000);
     const snap  = resourceManager.getSnapshot();
@@ -431,7 +438,7 @@ function launchGame(authScreen, gameShell, externalState = null) {
       : '';
 
     if (gainSummary || eventSummary) {
-      setTimeout(() => {
+      _showOfflineModal = () => {
         const overlay = document.getElementById('modal-overlay');
         const content = document.getElementById('modal-content');
         content.innerHTML = `
@@ -454,7 +461,7 @@ function launchGame(authScreen, gameShell, externalState = null) {
           </div>`;
         overlay.classList.remove('hidden');
         document.getElementById('btn-offline-close')?.addEventListener('click', () => overlay.classList.add('hidden'));
-      }, 800);
+      };
     }
   }
 
@@ -505,10 +512,19 @@ function launchGame(authScreen, gameShell, externalState = null) {
   const startEngine = () => {
     // Daily login check — fires once per calendar day, after any setup modal is done
     const loginResult = userManager.checkDailyLogin();
-    // Skip the login modal on first launch — it clashes with the tutorial
-    if (loginResult && userManager.profile.hasCompletedTutorial) {
+    const canShowLoginModal = loginResult && userManager.profile.hasCompletedTutorial;
+
+    if (canShowLoginModal) {
+      // Show daily login modal first; offline modal (if any) waits until it is dismissed
       setTimeout(() => ui.showDailyLoginModal(loginResult.day, loginResult.streak, loginResult.rewards), 600);
+      if (_showOfflineModal) {
+        eventBus.once('dailyLogin:modalClosed', () => setTimeout(_showOfflineModal, 400));
+      }
+    } else {
+      // No login modal — show offline modal immediately if there is one
+      if (_showOfflineModal) setTimeout(_showOfflineModal, 800);
     }
+
     engine.start();
     setTimeout(() => eventBus.emit('story:start'), 500);
     // Tutorial — first-launch only

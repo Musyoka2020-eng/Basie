@@ -139,15 +139,11 @@ export class QuestsUI {
           <div class="quest-celebration-name">"${data.name}"</div>
           <p style="color:var(--clr-text-secondary);font-size:var(--text-sm);margin-bottom:var(--space-5)">${data.description}</p>
           <div class="battle-rewards">${rewardHtml}</div>
-          <button class="btn btn-gold btn-lg" id="btn-quest-close" style="margin-top:var(--space-4)">Claim Rewards ✨</button>
+          <div style="display:flex;justify-content:flex-end;margin-top:var(--space-4)"><button class="btn btn-gold btn-lg modal-close" id="btn-quest-close">Continue ▶</button></div>
         </div>
       </div>`);
 
     this._spawnConfetti();
-    document.getElementById('btn-quest-close')?.addEventListener('click', () => {
-      eventBus.emit('ui:click');
-      closeModal();
-    });
   }
 
   _spawnConfetti() {

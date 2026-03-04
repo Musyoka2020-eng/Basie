@@ -138,12 +138,10 @@ export class ChallengeManager {
 
     entry.claimed = true;
 
-    const { items, ...resourceRewards } = cfg.reward;
-    if (Object.keys(resourceRewards).length > 0) this._rm.add(resourceRewards);
+    if (this._inv) this._inv.grantRewards(cfg.reward);
 
-    const rewardText = Object.entries(cfg.reward)
-      .filter(([k]) => k !== 'items')
-      .map(([k, v]) => `+${v} ${k}`)
+    const rewardText = cfg.reward
+      .map(r => r.type === 'resource' ? `+${r.quantity} ${r.itemId}` : r.itemId.replace(/_/g, ' '))
       .join(', ');
 
     this._mail.send({
@@ -156,7 +154,7 @@ export class ChallengeManager {
     // Route XP to the correct pass based on challenge type
     if (cfg.xpReward) this._awardPassXp(cfg.xpReward, cfg.type);
 
-    eventBus.emit('challenges:claimReward', { id, reward: cfg.reward });
+    eventBus.emit('challenges:claimReward', { id, rewards: cfg.reward });
     eventBus.emit('challenges:updated', this._getPublicState());
     return true;
   }
@@ -167,39 +165,36 @@ export class ChallengeManager {
   _awardPassXp(amount, type) {
     if (type === 'daily') {
       this._dailyPassXp += amount;
-      this._checkMilestones(DAILY_PASS_CONFIG, this._dailyPassXp, this._dailyPassClaimedMilestones, 'daily');
     } else {
       this._weeklyPassXp += amount;
-      this._checkMilestones(CHALLENGE_PASS_CONFIG, this._weeklyPassXp, this._weeklyPassClaimedMilestones, 'weekly');
     }
+    // Milestones are NOT auto-claimed — the player must click each chest to claim.
+    eventBus.emit('challenges:updated', this._getPublicState());
   }
 
-  _checkMilestones(config, currentXp, claimedSet, passLabel) {
-    config.forEach((milestone, index) => {
-      if (claimedSet.has(index))       return;
-      if (currentXp < milestone.xp)   return;
+  /**
+   * Player-initiated claim for a pass milestone chest.
+   * Rewards go to inventory (via grantRewards), not base resources directly.
+   * @param {'daily'|'weekly'} type
+   * @param {number} index  — zero-based index into the pass config array
+   * @returns {{ success: boolean, reason?: string }}
+   */
+  claimPassMilestone(type, index) {
+    const config     = type === 'daily' ? DAILY_PASS_CONFIG : CHALLENGE_PASS_CONFIG;
+    const claimedSet = type === 'daily' ? this._dailyPassClaimedMilestones : this._weeklyPassClaimedMilestones;
+    const currentXp  = type === 'daily' ? this._dailyPassXp : this._weeklyPassXp;
+    const milestone  = config[index];
 
-      claimedSet.add(index);
+    if (!milestone)               return { success: false, reason: 'Milestone not found.' };
+    if (claimedSet.has(index))    return { success: false, reason: 'Already claimed.' };
+    if (currentXp < milestone.xp) return { success: false, reason: 'Not yet unlocked.' };
 
-      const { items = [], ...resourceRewards } = milestone.rewards;
-      if (Object.keys(resourceRewards).length > 0) this._rm.add(resourceRewards);
-      if (this._inv) items.forEach(itemId => this._inv.addItem(itemId, 1));
+    claimedSet.add(index);
+    if (this._inv) this._inv.grantRewards(milestone.rewards);
 
-      const rewardDesc = [
-        ...Object.entries(resourceRewards).map(([k, v]) => `+${v} ${k}`),
-        ...items.map(id => id.replace(/_/g, ' ')),
-      ].join(', ');
-
-      const passName = passLabel === 'daily' ? 'Daily' : 'Weekly';
-      this._mail.send({
-        type:    'system',
-        subject: `🎁 ${passName} Pass Milestone: ${milestone.label}`,
-        body:    `You reached ${milestone.xp} ${passName} Pass XP! Rewards: ${rewardDesc}`,
-        icon:    milestone.icon,
-      });
-
-      eventBus.emit('challenges:passMilestone', { index, milestone, passLabel });
-    });
+    eventBus.emit('challenges:passMilestone', { index, milestone, type });
+    eventBus.emit('challenges:updated', this._getPublicState());
+    return { success: true };
   }
 
   // ─── PUBLIC API ────────────────────────────────────────────────

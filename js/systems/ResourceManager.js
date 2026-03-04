@@ -8,16 +8,15 @@ import { DIFFICULTY_MODIFIERS } from '../entities/GAME_DATA.js';
 
 // Starting amounts cover the full tutorial chain:
 // Lumbermill → Mine → Quarry → Barracks → HQ Lv2 → Infantry Hall
-// Total cost ≈ 1700 wood, 1080 stone, 70 iron.
+// Caps reflect TH level-1 values from the storageCap arrays in buildings.js.
 const DEFAULT_RESOURCES = {
-  wood:    { amount: 2000, perSec: 0, cap: 5000  },
-  stone:   { amount: 1500, perSec: 0, cap: 5000  },
-  iron:    { amount: 200,  perSec: 0, cap: 2000  },
-  food:    { amount: 100, perSec: 0, cap: 1000  },
-  water:   { amount: 200, perSec: 0, cap: 2000  },
+  wood:    { amount: 500, perSec: 0, cap: 3000     },
+  stone:   { amount: 300, perSec: 0, cap: 2500     },
+  iron:    { amount: 50,  perSec: 0, cap: 400      },
+  food:    { amount: 50,  perSec: 0, cap: 400      },
+  water:   { amount: 50,  perSec: 0, cap: 600      },
   diamond: { amount: 20,  perSec: 0, cap: Infinity },
-
-  money:   { amount: 0,   perSec: 0, cap: 50000 },
+  money:   { amount: 0,   perSec: 0, cap: 5000     },
 };
 
 export class ResourceManager {
@@ -31,6 +30,10 @@ export class ResourceManager {
     this._lastActiveBuildings = [];
     /** Population is a pseudo-resource — not spent/earned like others. */
     this._population = { current: 0, cap: 0 };
+    /** Cafeteria food-stock capacity (sum of all cafeteria instances). Updated by BuildingManager. */
+    this._foodCapacity = 0;
+    /** Cafeteria water-stock capacity (sum of all cafeteria instances). Updated by BuildingManager. */
+    this._waterCapacity = 0;
     // VIP perk: stacking all-production bonus
     this._vipProductionBonus = 0;
     // Difficulty production rate multiplier (from DIFFICULTY_MODIFIERS.resourceRate)
@@ -298,6 +301,26 @@ export class ResourceManager {
       this._population.current = clamped;
     }
     eventBus.emit('population:updated', this.getPopulation());
+  }
+
+  // =============================================
+  // CAFETERIA STOCK CAPACITY
+  // =============================================
+
+  /** Total food-stock capacity across all cafeteria instances. */
+  getFoodCapacity()  { return this._foodCapacity; }
+
+  /** Total water-stock capacity across all cafeteria instances. */
+  getWaterCapacity() { return this._waterCapacity; }
+
+  /** Called by BuildingManager._recalculateAllCaps() whenever cafeteria level changes. */
+  setFoodCapacity(cap) {
+    this._foodCapacity = Math.max(0, cap);
+  }
+
+  /** Called by BuildingManager._recalculateAllCaps() whenever cafeteria level changes. */
+  setWaterCapacity(cap) {
+    this._waterCapacity = Math.max(0, cap);
   }
 
   growPopulation(amount) {

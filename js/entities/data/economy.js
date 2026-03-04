@@ -72,43 +72,61 @@ export const INVENTORY_ITEMS = {
     description: 'Grants 5,000 Hero XP to a chosen hero.',
     moneyCost: 4000, grants: { xp: 5000 }, rarity: 'rare',
   },
-  // ── Resource Bundles ─────────────────────────────────────────────────────
-  res_bundle_wood_sm: {
-    id: 'res_bundle_wood_sm', type: 'resource_bundle',
-    name: 'Bundle of Timber', icon: '🪵',
-    description: 'Instantly grants 1,000 Wood.',
-    moneyCost: 0, grants: { wood: 1000 }, rarity: 'common',
-  },
-  res_bundle_stone_sm: {
-    id: 'res_bundle_stone_sm', type: 'resource_bundle',
-    name: 'Load of Stone', icon: '🪨',
-    description: 'Instantly grants 1,000 Stone.',
-    moneyCost: 0, grants: { stone: 1000 }, rarity: 'common',
-  },
-  res_bundle_iron_sm: {
-    id: 'res_bundle_iron_sm', type: 'resource_bundle',
-    name: 'Pile of Iron Ore', icon: '⚙️',
-    description: 'Instantly grants 500 Iron.',
-    moneyCost: 0, grants: { iron: 500 }, rarity: 'common',
-  },
-  res_bundle_food_sm: {
-    id: 'res_bundle_food_sm', type: 'resource_bundle',
-    name: 'Ration Pack', icon: '🌾',
-    description: 'Instantly grants 1,000 Food.',
-    moneyCost: 0, grants: { food: 1000 }, rarity: 'common',
-  },
-  res_bundle_water_sm: {
-    id: 'res_bundle_water_sm', type: 'resource_bundle',
-    name: 'Barrel of Water', icon: '💧',
-    description: 'Instantly grants 500 Water.',
-    moneyCost: 0, grants: { water: 500 }, rarity: 'common',
-  },
-  res_bundle_diamond_sm: {
-    id: 'res_bundle_diamond_sm', type: 'resource_bundle',
-    name: 'Gem Pouch', icon: '💎',
-    description: 'Instantly grants 5 Diamonds.',
-    diamondCost: 0, grants: { diamond: 5 }, rarity: 'rare',
-  },
+  // ── Resource Bundles (5-tier system) ──────────────────────────────────────
+  // Common (Wood, Stone, Food, Money): T1=200 / T2=500 / T3=1000 / T4=2500 / T5=5000
+  // Rare   (Iron, Water):              T1=50  / T2=100 / T3=250  / T4=500  / T5=1000
+  // Diamond:                           T1=5   / T2=10  / T3=20   / T4=50   / T5=100
+  // Rarity: T1-T2=common, T3=rare, T4-T5=legendary
+
+  // ── Wood ────────────────────────────────────────────────────────────────
+  res_bundle_wood_t1: { id: 'res_bundle_wood_t1', type: 'resource_bundle', name: 'Wood Bundle (Small)',    icon: '🪵', description: 'Grants 200 Wood.',   moneyCost: 0, grants: { wood: 200  }, rarity: 'common'    },
+  res_bundle_wood_t2: { id: 'res_bundle_wood_t2', type: 'resource_bundle', name: 'Wood Bundle (Medium)',   icon: '🪵', description: 'Grants 500 Wood.',   moneyCost: 0, grants: { wood: 500  }, rarity: 'common'    },
+  res_bundle_wood_t3: { id: 'res_bundle_wood_t3', type: 'resource_bundle', name: 'Wood Bundle (Large)',    icon: '🪵', description: 'Grants 1,000 Wood.', moneyCost: 0, grants: { wood: 1000 }, rarity: 'rare'      },
+  res_bundle_wood_t4: { id: 'res_bundle_wood_t4', type: 'resource_bundle', name: 'Wood Bundle (Grand)',    icon: '🪵', description: 'Grants 2,500 Wood.', moneyCost: 0, grants: { wood: 2500 }, rarity: 'legendary' },
+  res_bundle_wood_t5: { id: 'res_bundle_wood_t5', type: 'resource_bundle', name: 'Wood Bundle (Colossal)', icon: '🪵', description: 'Grants 5,000 Wood.', moneyCost: 0, grants: { wood: 5000 }, rarity: 'legendary' },
+
+  // ── Stone ───────────────────────────────────────────────────────────────
+  res_bundle_stone_t1: { id: 'res_bundle_stone_t1', type: 'resource_bundle', name: 'Stone Bundle (Small)',    icon: '🪨', description: 'Grants 200 Stone.',   moneyCost: 0, grants: { stone: 200  }, rarity: 'common'    },
+  res_bundle_stone_t2: { id: 'res_bundle_stone_t2', type: 'resource_bundle', name: 'Stone Bundle (Medium)',   icon: '🪨', description: 'Grants 500 Stone.',   moneyCost: 0, grants: { stone: 500  }, rarity: 'common'    },
+  res_bundle_stone_t3: { id: 'res_bundle_stone_t3', type: 'resource_bundle', name: 'Stone Bundle (Large)',    icon: '🪨', description: 'Grants 1,000 Stone.', moneyCost: 0, grants: { stone: 1000 }, rarity: 'rare'      },
+  res_bundle_stone_t4: { id: 'res_bundle_stone_t4', type: 'resource_bundle', name: 'Stone Bundle (Grand)',    icon: '🪨', description: 'Grants 2,500 Stone.', moneyCost: 0, grants: { stone: 2500 }, rarity: 'legendary' },
+  res_bundle_stone_t5: { id: 'res_bundle_stone_t5', type: 'resource_bundle', name: 'Stone Bundle (Colossal)', icon: '🪨', description: 'Grants 5,000 Stone.', moneyCost: 0, grants: { stone: 5000 }, rarity: 'legendary' },
+
+  // ── Food ────────────────────────────────────────────────────────────────
+  res_bundle_food_t1: { id: 'res_bundle_food_t1', type: 'resource_bundle', name: 'Ration Pack (Small)',    icon: '🌾', description: 'Grants 200 Food.',   moneyCost: 0, grants: { food: 200  }, rarity: 'common'    },
+  res_bundle_food_t2: { id: 'res_bundle_food_t2', type: 'resource_bundle', name: 'Ration Pack (Medium)',   icon: '🌾', description: 'Grants 500 Food.',   moneyCost: 0, grants: { food: 500  }, rarity: 'common'    },
+  res_bundle_food_t3: { id: 'res_bundle_food_t3', type: 'resource_bundle', name: 'Ration Pack (Large)',    icon: '🌾', description: 'Grants 1,000 Food.', moneyCost: 0, grants: { food: 1000 }, rarity: 'rare'      },
+  res_bundle_food_t4: { id: 'res_bundle_food_t4', type: 'resource_bundle', name: 'Ration Pack (Grand)',    icon: '🌾', description: 'Grants 2,500 Food.', moneyCost: 0, grants: { food: 2500 }, rarity: 'legendary' },
+  res_bundle_food_t5: { id: 'res_bundle_food_t5', type: 'resource_bundle', name: 'Ration Pack (Colossal)', icon: '🌾', description: 'Grants 5,000 Food.', moneyCost: 0, grants: { food: 5000 }, rarity: 'legendary' },
+
+  // ── Money (Gold) ─────────────────────────────────────────────────────────
+  res_bundle_money_t1: { id: 'res_bundle_money_t1', type: 'resource_bundle', name: 'Gold Pouch (Small)',    icon: '🪙', description: 'Grants 200 Gold.',   moneyCost: 0, grants: { money: 200  }, rarity: 'common'    },
+  res_bundle_money_t2: { id: 'res_bundle_money_t2', type: 'resource_bundle', name: 'Gold Pouch (Medium)',   icon: '🪙', description: 'Grants 500 Gold.',   moneyCost: 0, grants: { money: 500  }, rarity: 'common'    },
+  res_bundle_money_t3: { id: 'res_bundle_money_t3', type: 'resource_bundle', name: 'Gold Pouch (Large)',    icon: '🪙', description: 'Grants 1,000 Gold.', moneyCost: 0, grants: { money: 1000 }, rarity: 'rare'      },
+  res_bundle_money_t4: { id: 'res_bundle_money_t4', type: 'resource_bundle', name: 'Gold Pouch (Grand)',    icon: '🪙', description: 'Grants 2,500 Gold.', moneyCost: 0, grants: { money: 2500 }, rarity: 'legendary' },
+  res_bundle_money_t5: { id: 'res_bundle_money_t5', type: 'resource_bundle', name: 'Gold Pouch (Colossal)', icon: '🪙', description: 'Grants 5,000 Gold.', moneyCost: 0, grants: { money: 5000 }, rarity: 'legendary' },
+
+  // ── Iron ────────────────────────────────────────────────────────────────
+  res_bundle_iron_t1: { id: 'res_bundle_iron_t1', type: 'resource_bundle', name: 'Iron Bundle (Small)',    icon: '⚙️', description: 'Grants 50 Iron.',    moneyCost: 0, grants: { iron: 50   }, rarity: 'common'    },
+  res_bundle_iron_t2: { id: 'res_bundle_iron_t2', type: 'resource_bundle', name: 'Iron Bundle (Medium)',   icon: '⚙️', description: 'Grants 100 Iron.',   moneyCost: 0, grants: { iron: 100  }, rarity: 'common'    },
+  res_bundle_iron_t3: { id: 'res_bundle_iron_t3', type: 'resource_bundle', name: 'Iron Bundle (Large)',    icon: '⚙️', description: 'Grants 250 Iron.',   moneyCost: 0, grants: { iron: 250  }, rarity: 'rare'      },
+  res_bundle_iron_t4: { id: 'res_bundle_iron_t4', type: 'resource_bundle', name: 'Iron Bundle (Grand)',    icon: '⚙️', description: 'Grants 500 Iron.',   moneyCost: 0, grants: { iron: 500  }, rarity: 'legendary' },
+  res_bundle_iron_t5: { id: 'res_bundle_iron_t5', type: 'resource_bundle', name: 'Iron Bundle (Colossal)', icon: '⚙️', description: 'Grants 1,000 Iron.', moneyCost: 0, grants: { iron: 1000 }, rarity: 'legendary' },
+
+  // ── Water ───────────────────────────────────────────────────────────────
+  res_bundle_water_t1: { id: 'res_bundle_water_t1', type: 'resource_bundle', name: 'Water Bundle (Small)',    icon: '💧', description: 'Grants 50 Water.',    moneyCost: 0, grants: { water: 50   }, rarity: 'common'    },
+  res_bundle_water_t2: { id: 'res_bundle_water_t2', type: 'resource_bundle', name: 'Water Bundle (Medium)',   icon: '💧', description: 'Grants 100 Water.',   moneyCost: 0, grants: { water: 100  }, rarity: 'common'    },
+  res_bundle_water_t3: { id: 'res_bundle_water_t3', type: 'resource_bundle', name: 'Water Bundle (Large)',    icon: '💧', description: 'Grants 250 Water.',   moneyCost: 0, grants: { water: 250  }, rarity: 'rare'      },
+  res_bundle_water_t4: { id: 'res_bundle_water_t4', type: 'resource_bundle', name: 'Water Bundle (Grand)',    icon: '💧', description: 'Grants 500 Water.',   moneyCost: 0, grants: { water: 500  }, rarity: 'legendary' },
+  res_bundle_water_t5: { id: 'res_bundle_water_t5', type: 'resource_bundle', name: 'Water Bundle (Colossal)', icon: '💧', description: 'Grants 1,000 Water.', moneyCost: 0, grants: { water: 1000 }, rarity: 'legendary' },
+
+  // ── Diamond ─────────────────────────────────────────────────────────────
+  res_bundle_diamond_t1: { id: 'res_bundle_diamond_t1', type: 'resource_bundle', name: 'Gem Pouch (Small)',    icon: '💎', description: 'Grants 5 Diamonds.',   diamondCost: 0, grants: { diamond: 5   }, rarity: 'common'    },
+  res_bundle_diamond_t2: { id: 'res_bundle_diamond_t2', type: 'resource_bundle', name: 'Gem Pouch (Medium)',   icon: '💎', description: 'Grants 10 Diamonds.',  diamondCost: 0, grants: { diamond: 10  }, rarity: 'common'    },
+  res_bundle_diamond_t3: { id: 'res_bundle_diamond_t3', type: 'resource_bundle', name: 'Gem Pouch (Large)',    icon: '💎', description: 'Grants 20 Diamonds.',  diamondCost: 0, grants: { diamond: 20  }, rarity: 'rare'      },
+  res_bundle_diamond_t4: { id: 'res_bundle_diamond_t4', type: 'resource_bundle', name: 'Gem Pouch (Grand)',    icon: '💎', description: 'Grants 50 Diamonds.',  diamondCost: 0, grants: { diamond: 50  }, rarity: 'legendary' },
+  res_bundle_diamond_t5: { id: 'res_bundle_diamond_t5', type: 'resource_bundle', name: 'Gem Pouch (Colossal)', icon: '💎', description: 'Grants 100 Diamonds.', diamondCost: 0, grants: { diamond: 100 }, rarity: 'legendary' },
+
   // ── Automations ──────────────────────────────────────────────────────────
   cafeteria_automation: {
     id: 'cafeteria_automation', type: 'automation',
@@ -250,12 +268,12 @@ export const SHOP_CONFIG = [
   {
     id: 'resources', label: 'Resources', icon: '📦',
     items: [
-      { itemId: 'res_bundle_wood_sm',  moneyCost: 150 },
-      { itemId: 'res_bundle_stone_sm', moneyCost: 150 },
-      { itemId: 'res_bundle_iron_sm',  moneyCost: 200 },
-      { itemId: 'res_bundle_food_sm',  moneyCost: 125 },
-      { itemId: 'res_bundle_water_sm', moneyCost: 200 },
-      { itemId: 'res_bundle_diamond_sm', diamondCost: 2 },
+      { itemId: 'res_bundle_wood_t3',    moneyCost: 150 },
+      { itemId: 'res_bundle_stone_t3',   moneyCost: 150 },
+      { itemId: 'res_bundle_iron_t4',    moneyCost: 200 },
+      { itemId: 'res_bundle_food_t3',    moneyCost: 125 },
+      { itemId: 'res_bundle_water_t4',   moneyCost: 200 },
+      { itemId: 'res_bundle_diamond_t1', diamondCost: 2 },
     ],
   },
   {

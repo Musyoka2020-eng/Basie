@@ -242,7 +242,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Research Rush',
     description: 'Complete 1 research today',
     objective:   { event: 'tech:researched', count: 1 },
-    reward:      { money: 600, iron: 150 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 600 }, { type: 'resource', itemId: 'iron', quantity: 150 }],
     xpReward:    40,   // easiest daily
   },
   {
@@ -251,7 +251,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Market Day',
     description: 'Make 5 market trades today',
     objective:   { event: 'market:traded', count: 5 },
-    reward:      { money: 1200, wood: 400 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 1200 }, { type: 'resource', itemId: 'wood', quantity: 400 }],
     xpReward:    50,
   },
   {
@@ -260,7 +260,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Construction Spree',
     description: 'Start 3 construction projects today',
     objective:   { event: 'building:started', count: 3 },
-    reward:      { wood: 600, stone: 600 },
+    reward:      [{ type: 'resource', itemId: 'wood', quantity: 600 }, { type: 'resource', itemId: 'stone', quantity: 600 }],
     xpReward:    60,
   },
   {
@@ -269,7 +269,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Task Force',
     description: 'Complete 2 quests today',
     objective:   { event: 'quest:completed', count: 2 },
-    reward:      { wood: 500, stone: 500, iron: 300 },
+    reward:      [{ type: 'resource', itemId: 'wood', quantity: 500 }, { type: 'resource', itemId: 'stone', quantity: 500 }, { type: 'resource', itemId: 'iron', quantity: 300 }],
     xpReward:    65,
   },
   {
@@ -278,7 +278,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Boot Camp',
     description: 'Train 200 units today',
     objective:   { event: 'unit:trained', count: 200, countField: 'count' },
-    reward:      { money: 800, iron: 200 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 800 }, { type: 'resource', itemId: 'iron', quantity: 200 }],
     xpReward:    75,
   },
   {
@@ -287,7 +287,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Hero Hunter',
     description: 'Recruit 1 hero today',
     objective:   { event: 'hero:recruited', count: 1 },
-    reward:      { diamond: 2, money: 800 },
+    reward:      [{ type: 'resource', itemId: 'diamond', quantity: 2 }, { type: 'resource', itemId: 'money', quantity: 800 }],
     xpReward:    80,
   },
   {
@@ -296,7 +296,7 @@ export const CHALLENGES_CONFIG = [
     name:        "Warrior's Trial",
     description: 'Win 3 battles today',
     objective:   { event: 'combat:victory', count: 3 },
-    reward:      { money: 1000, diamond: 1 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 1000 }, { type: 'resource', itemId: 'diamond', quantity: 1 }],
     xpReward:    90,
   },
   {
@@ -305,7 +305,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Achievement Seeker',
     description: 'Unlock 1 achievement today',
     objective:   { event: 'achievement:unlocked', count: 1 },
-    reward:      { money: 1500, diamond: 2 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 1500 }, { type: 'resource', itemId: 'diamond', quantity: 2 }],
     xpReward:    120,  // hardest daily — achievements are rare
   },
   // ══ Weekly (total max XP: 1,750) ═════════════════════════════════
@@ -315,7 +315,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Market Maven',
     description: 'Make 10 market trades this week',
     objective:   { event: 'market:traded', count: 10 },
-    reward:      { money: 3000, diamond: 3 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 3000 }, { type: 'resource', itemId: 'diamond', quantity: 3 }],
     xpReward:    150,
   },
   {
@@ -324,7 +324,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Master Builder',
     description: 'Complete 5 construction projects this week',
     objective:   { event: 'building:completed', count: 5 },
-    reward:      { diamond: 5, money: 2000 },
+    reward:      [{ type: 'resource', itemId: 'diamond', quantity: 5 }, { type: 'resource', itemId: 'money', quantity: 2000 }],
     xpReward:    175,
   },
   {
@@ -333,7 +333,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Quest Chain',
     description: 'Complete 10 quests this week',
     objective:   { event: 'quest:completed', count: 10 },
-    reward:      { money: 3500, wood: 1000, iron: 500 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 3500 }, { type: 'resource', itemId: 'wood', quantity: 1000 }, { type: 'resource', itemId: 'iron', quantity: 500 }],
     xpReward:    200,
   },
   {
@@ -342,7 +342,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Tech Tree Climber',
     description: 'Research 5 technologies this week',
     objective:   { event: 'tech:researched', count: 5 },
-    reward:      { money: 4000, iron: 1000 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 4000 }, { type: 'resource', itemId: 'iron', quantity: 1000 }],
     xpReward:    225,
   },
   {
@@ -351,7 +351,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Hall of Fame',
     description: 'Unlock 3 achievements this week',
     objective:   { event: 'achievement:unlocked', count: 3 },
-    reward:      { diamond: 10, money: 4000 },
+    reward:      [{ type: 'resource', itemId: 'diamond', quantity: 10 }, { type: 'resource', itemId: 'money', quantity: 4000 }],
     xpReward:    275,
   },
   {
@@ -360,7 +360,7 @@ export const CHALLENGES_CONFIG = [
     name:        'Battle Hardened',
     description: 'Win 20 battles this week',
     objective:   { event: 'combat:victory', count: 20 },
-    reward:      { money: 5000, diamond: 5 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 5000 }, { type: 'resource', itemId: 'diamond', quantity: 5 }],
     xpReward:    325,
   },
   {
@@ -369,7 +369,7 @@ export const CHALLENGES_CONFIG = [
     name:        'War Machine',
     description: 'Train 1,000 units this week',
     objective:   { event: 'unit:trained', count: 1000, countField: 'count' },
-    reward:      { money: 6000, diamond: 8 },
+    reward:      [{ type: 'resource', itemId: 'money', quantity: 6000 }, { type: 'resource', itemId: 'diamond', quantity: 8 }],
     xpReward:    400,  // hardest weekly
   },
 ];
@@ -378,37 +378,40 @@ export const CHALLENGES_CONFIG = [
 // 7-day cycle; day 8+ wraps back to day 1.
 // Every 30th consecutive day the MILESTONE entry fires instead.
 export const DAILY_LOGIN_REWARDS = [
-  { day: 1, label: 'Day 1',  rewards: { money: 500 } },
-  { day: 2, label: 'Day 2',  rewards: { wood: 300, stone: 200 } },
-  { day: 3, label: 'Day 3',  rewards: { iron: 200 } },
-  { day: 4, label: 'Day 4',  rewards: { money: 1000, wood: 500 } },
-  { day: 5, label: 'Day 5',  rewards: { iron: 400, stone: 300 } },
-  { day: 6, label: 'Day 6',  rewards: { money: 1500, diamond: 2 } },
-  { day: 7, label: 'Day 7',  rewards: { diamond: 5, money: 2000 }, items: ['xp_bundle_small'] },
+  { day: 1, label: 'Day 1',  rewards: [{ type: 'resource', itemId: 'money',   quantity: 500  }] },
+  { day: 2, label: 'Day 2',  rewards: [{ type: 'resource', itemId: 'wood',    quantity: 300  }, { type: 'resource', itemId: 'stone',   quantity: 200  }] },
+  { day: 3, label: 'Day 3',  rewards: [{ type: 'resource', itemId: 'iron',    quantity: 200  }] },
+  { day: 4, label: 'Day 4',  rewards: [{ type: 'resource', itemId: 'money',   quantity: 1000 }, { type: 'resource', itemId: 'wood',    quantity: 500  }] },
+  { day: 5, label: 'Day 5',  rewards: [{ type: 'resource', itemId: 'iron',    quantity: 400  }, { type: 'resource', itemId: 'stone',   quantity: 300  }] },
+  { day: 6, label: 'Day 6',  rewards: [{ type: 'resource', itemId: 'money',   quantity: 1500 }, { type: 'resource', itemId: 'diamond', quantity: 2    }] },
+  { day: 7, label: 'Day 7',  rewards: [{ type: 'resource', itemId: 'diamond', quantity: 5    }, { type: 'resource', itemId: 'money',   quantity: 2000 }, { type: 'item', itemId: 'xp_bundle_small', quantity: 1 }] },
 ];
 
 /** Fired instead of the normal day when streak is a multiple of 30. */
-export const DAILY_LOGIN_MILESTONE = { diamond: 50, money: 5000 };
+export const DAILY_LOGIN_MILESTONE = [
+  { type: 'resource', itemId: 'diamond', quantity: 50   },
+  { type: 'resource', itemId: 'money',   quantity: 5000 },
+];
 
 // ─── DAILY CHALLENGE PASS ─────────────────────────────────────────
 // Resets each day. Max daily XP = 580 (all 8 dailies completed).
 // 5 milestones spread across the full range.
 export const DAILY_PASS_CONFIG = [
-  { xp:  80, label: '+1,000 Gold',          rewards: { money: 1000                }, icon: '🪙' },
-  { xp: 200, label: 'Common Scroll',        rewards: { items: ['scroll_common']   }, icon: '📜' },
-  { xp: 360, label: '+5 Diamonds',          rewards: { diamond: 5                 }, icon: '💎' },
-  { xp: 480, label: '+2,000 Gold & Iron',   rewards: { money: 2000, iron: 300     }, icon: '⚗️' },
-  { xp: 580, label: '+8 Diamonds',          rewards: { diamond: 8                 }, icon: '👑' },
+  { xp:  80, label: '+1,000 Gold',          rewards: [{ type: 'resource', itemId: 'money',   quantity: 1000 }],                                                                      icon: '🪙' },
+  { xp: 200, label: 'Common Scroll',        rewards: [{ type: 'item',     itemId: 'scroll_common',    quantity: 1 }],                                                              icon: '📜' },
+  { xp: 360, label: '+5 Diamonds',          rewards: [{ type: 'resource', itemId: 'diamond', quantity: 5    }],                                                                      icon: '💎' },
+  { xp: 480, label: '+2,000 Gold & Iron',   rewards: [{ type: 'resource', itemId: 'money',   quantity: 2000 }, { type: 'resource', itemId: 'iron', quantity: 300 }],               icon: '⚗️' },
+  { xp: 580, label: '+8 Diamonds',          rewards: [{ type: 'resource', itemId: 'diamond', quantity: 8    }],                                                                      icon: '👑' },
 ];
 
 // ─── WEEKLY CHALLENGE PASS ────────────────────────────────────────
 // Resets each Monday. Max weekly XP = 1,750 (all 7 weeklies completed).
 // 6 milestones spread across the full range.
 export const CHALLENGE_PASS_CONFIG = [
-  { xp:  200, label: '+5 Diamonds',         rewards: { diamond: 5                  }, icon: '💎' },
-  { xp:  500, label: 'Rare Scroll',         rewards: { items: ['scroll_rare']      }, icon: '📜' },
-  { xp:  875, label: '+10 Diamonds',        rewards: { diamond: 10, money: 2000    }, icon: '💎' },
-  { xp: 1200, label: 'Rare Hero Card',      rewards: { items: ['card_rare']        }, icon: '🃏' },
-  { xp: 1500, label: '+20 Diamonds',        rewards: { diamond: 20                 }, icon: '💎' },
-  { xp: 1750, label: 'Legendary Scroll',    rewards: { items: ['scroll_legendary'] }, icon: '📜' },
+  { xp:  200, label: '+5 Diamonds',         rewards: [{ type: 'resource', itemId: 'diamond',          quantity: 5    }],                                                          icon: '💎' },
+  { xp:  500, label: 'Rare Scroll',         rewards: [{ type: 'item',     itemId: 'scroll_rare',      quantity: 1    }],                                                          icon: '📜' },
+  { xp:  875, label: '+10 Diamonds',        rewards: [{ type: 'resource', itemId: 'diamond',          quantity: 10   }, { type: 'resource', itemId: 'money', quantity: 2000 }],   icon: '💎' },
+  { xp: 1200, label: 'Rare Hero Card',      rewards: [{ type: 'item',     itemId: 'card_rare',        quantity: 1    }],                                                          icon: '🃏' },
+  { xp: 1500, label: '+20 Diamonds',        rewards: [{ type: 'resource', itemId: 'diamond',          quantity: 20   }],                                                          icon: '💎' },
+  { xp: 1750, label: 'Legendary Scroll',    rewards: [{ type: 'item',     itemId: 'scroll_legendary', quantity: 1    }],                                                          icon: '📜' },
 ];

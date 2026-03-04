@@ -146,6 +146,26 @@
   overflow: hidden;
 }
 .inv-card:hover { border-color: rgba(255,255,255,0.15); }
+/* Newly granted item — gold border + "NEW" pill. Cleared 3 s after panel opens. */
+.inv-card--new {
+  position: relative;
+  border-color: var(--clr-gold, #f4c430);
+  box-shadow: 0 0 0 2px rgba(244, 196, 48, 0.2), 0 0 10px rgba(244, 196, 48, 0.1);
+}
+.inv-card--new::after {
+  content: 'NEW';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: var(--clr-gold, #f4c430);
+  color: #000;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
 /* Last card alone in its row → full width */
 .inv-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 

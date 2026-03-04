@@ -4,8 +4,51 @@
  * Items include hero recruitment cards (specific and universal) and XP bundles.
  * Items are added via quest/achievement rewards, welcome mail, or future shop purchases.
  */
-import { eventBus }       from '../core/EventBus.js';
+import { eventBus } from '../core/EventBus.js';
 import { INVENTORY_ITEMS } from '../entities/GAME_DATA.js';
+
+/**
+ * Tier ladder for each resource type — matched to the entries in economy.js.
+ * Listed smallest → largest; used by _splitIntoTierBundles() for greedy decomposition.
+ */
+const RESOURCE_BUNDLE_TIERS = {
+  wood:    [200, 500, 1000, 2500, 5000].map((q, i) => ({ id: `res_bundle_wood_t${i + 1}`,    qty: q })),
+  stone:   [200, 500, 1000, 2500, 5000].map((q, i) => ({ id: `res_bundle_stone_t${i + 1}`,   qty: q })),
+  food:    [200, 500, 1000, 2500, 5000].map((q, i) => ({ id: `res_bundle_food_t${i + 1}`,    qty: q })),
+  money:   [200, 500, 1000, 2500, 5000].map((q, i) => ({ id: `res_bundle_money_t${i + 1}`,   qty: q })),
+  iron:    [50,  100, 250,  500,  1000].map((q, i) => ({ id: `res_bundle_iron_t${i + 1}`,    qty: q })),
+  water:   [50,  100, 250,  500,  1000].map((q, i) => ({ id: `res_bundle_water_t${i + 1}`,   qty: q })),
+  diamond: [5,   10,  20,   50,   100 ].map((q, i) => ({ id: `res_bundle_diamond_t${i + 1}`, qty: q })),
+};
+
+/**
+ * Greedily converts a raw resource amount into tiered bundle stack entries.
+ * Works largest-to-smallest. Any non-zero remainder is rounded up to one T1 bundle
+ * so the player always receives at least the promised amount.
+ * @param {string} resource
+ * @param {number} amount
+ * @returns {Array<{ bundleId: string, qty: number }>}
+ */
+function _splitIntoTierBundles(resource, amount) {
+  const tiers = RESOURCE_BUNDLE_TIERS[resource];
+  if (!tiers) {
+    console.warn(`[InventoryManager] No tier config for resource: ${resource}`);
+    return [];
+  }
+  const result = [];
+  let remaining = Math.max(0, Math.round(amount));
+  // Greedy: consume as many of the largest tier as possible
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (remaining >= tiers[i].qty) {
+      const count = Math.floor(remaining / tiers[i].qty);
+      result.push({ bundleId: tiers[i].id, qty: count });
+      remaining -= count * tiers[i].qty;
+    }
+  }
+  // Non-zero remainder → one extra T1 (player never loses resources)
+  if (remaining > 0) result.push({ bundleId: tiers[0].id, qty: 1 });
+  return result;
+}
 
 export class InventoryManager {
   constructor() {
@@ -19,10 +62,10 @@ export class InventoryManager {
     this._tm = null; // set via setTechnologyManager()
   }
 
-  setHeroManager(hm)       { this._hm = hm; }
-  setResourceManager(rm)   { this._rm = rm; }
-  setBuildingManager(bm)   { this._bm = bm; }
-  setUnitManager(um)       { this._um = um; }
+  setHeroManager(hm) { this._hm = hm; }
+  setResourceManager(rm) { this._rm = rm; }
+  setBuildingManager(bm) { this._bm = bm; }
+  setUnitManager(um) { this._um = um; }
   setTechnologyManager(tm) { this._tm = tm; }
 
   /** Get count of fragments for a hero by heroId */
@@ -50,6 +93,30 @@ export class InventoryManager {
   }
 
   /**
+   * Grant an array of rewards into the player's inventory for deferred use.
+   * Resource rewards become usable resource_bundle items; item rewards are added directly.
+   * @param {Array<{ type: 'resource'|'item', itemId: string, quantity: number }>} rewardArray
+   * @returns {Array<{ type: string, itemId: string, quantity: number }>} the same array (for UI summary)
+   */
+  grantRewards(rewardArray) {
+    if (!Array.isArray(rewardArray)) return [];
+    for (const r of rewardArray) {
+      if (r.type === 'resource') {
+        // Decompose the amount into tiered bundles (greedy, largest-first).
+        const splits = _splitIntoTierBundles(r.itemId, r.quantity);
+        for (const { bundleId, qty } of splits) this.addItem(bundleId, qty);
+      } else if (r.type === 'item') {
+        this.addItem(r.itemId, r.quantity);
+      }
+    }
+
+    if (rewardArray.length > 0) {
+      eventBus.emit('inventory:updated', { rewards: rewardArray });
+    }
+    return rewardArray;
+  }
+
+  /**
    * Remove qty of an item. Returns false if insufficient quantity.
    * @param {string} itemId
    * @param {number} [qty=1]
@@ -60,7 +127,7 @@ export class InventoryManager {
     if (current < qty) return false;
     const next = current - qty;
     if (next === 0) this._items.delete(itemId);
-    else            this._items.set(itemId, next);
+    else this._items.set(itemId, next);
     eventBus.emit('inventory:updated', this.getItems());
     return true;
   }
@@ -203,7 +270,7 @@ export class InventoryManager {
   // ─────────────────────────────────────────────
 
   /** No per-tick logic needed. */
-  update(_dt) {}
+  update(_dt) { }
 
   // ─────────────────────────────────────────────
   // PERSISTENCE
@@ -216,7 +283,7 @@ export class InventoryManager {
   deserialize(data) {
     if (!data?.items) return;
     for (const [id, qty] of Object.entries(data.items)) {
-      if (INVENTORY_ITEMS[id] && qty > 0) this._items.set(id, qty);
+      if (qty > 0 && INVENTORY_ITEMS[id]) this._items.set(id, qty);
     }
   }
 }

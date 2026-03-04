@@ -28,6 +28,9 @@ export class NavigationUI {
     this._renderProfile(this._s.user.getProfile());
     this._updateMailBadge(this._s.mail.getUnreadCount());
     this._refreshStatusBar();
+    if (this._s.achievements) {
+      this._updateAchievementsBadge(this._s.achievements.getAll());
+    }
   }
 
   // ---- NAVIGATION ----
@@ -94,9 +97,13 @@ export class NavigationUI {
     eventBus.on('building:cafeteria:shortfall', () => {
       this._s.notifications?.show('warning', '🍽️ Food Running Low', 'Cafeteria supplies are critically low — population is shrinking!');
     });
-    eventBus.on('challenges:updated', challenges => this._updateChallengesBadge(challenges));
-    eventBus.on('events:updated',     state      => this._updateEventsBadge(state));
-    eventBus.on('user:vipUpdate',     ()         => this._renderProfile(this._s.user.getProfile()));
+    eventBus.on('challenges:updated',  challenges => this._updateChallengesBadge(challenges));
+    eventBus.on('events:updated',       state      => this._updateEventsBadge(state));
+    eventBus.on('user:vipUpdate',       ()         => this._renderProfile(this._s.user.getProfile()));
+    eventBus.on('achievement:unlocked', d          => {
+      this._s.notifications?.show('success', '🏆 Achievement Unlocked!', d?.name ?? 'Achievement unlocked');
+    });
+    eventBus.on('achievements:updated', all        => this._updateAchievementsBadge(all));
   }
 
   // ---- RESOURCES ----
@@ -229,8 +236,14 @@ export class NavigationUI {
     if (!badge) return;
     const challenges = Array.isArray(payload) ? payload : (payload?.challenges ?? []);
     const claimable  = challenges.filter(c => c.completed && !c.claimed).length;
-    claimable > 0
-      ? (badge.textContent = claimable > 99 ? '99+' : claimable, badge.classList.remove('hidden'))
+
+    // Also count unclaimed pass milestone chests
+    const unclaimedMs = (pass) => (pass?.milestones ?? []).filter(m => m.unlocked && !m.claimed).length;
+    const milestoneClaimable = unclaimedMs(payload?.dailyPass) + unclaimedMs(payload?.weeklyPass);
+
+    const total = claimable + milestoneClaimable;
+    total > 0
+      ? (badge.textContent = total > 99 ? '99+' : total, badge.classList.remove('hidden'))
       : badge.classList.add('hidden');
   }
 
@@ -240,6 +253,18 @@ export class NavigationUI {
     if (!badge) return;
     state?.activeEvent
       ? (badge.textContent = '!', badge.classList.remove('hidden'))
+      : badge.classList.add('hidden');
+  }
+
+  // ---- ACHIEVEMENTS BADGE ----
+  _updateAchievementsBadge(all) {
+    const badge = document.getElementById('achievements-badge');
+    if (!badge) return;
+    const unclaimed = Array.isArray(all)
+      ? all.filter(a => a.completed && !a.claimed).length
+      : 0;
+    unclaimed > 0
+      ? (badge.textContent = unclaimed > 99 ? '99+' : String(unclaimed), badge.classList.remove('hidden'))
       : badge.classList.add('hidden');
   }
 }

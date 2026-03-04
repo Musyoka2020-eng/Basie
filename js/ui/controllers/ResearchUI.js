@@ -1,11 +1,12 @@
 /**
  * ResearchUI.js
- * Renders the multi-level tech tree, research queue panel, and achievements.
+ * Renders the multi-level tech tree and research queue panel.
  *
  * UI sections (top to bottom):
  *  1. Research Queue panel — shows up to 4 slot boxes (locked/empty/active/queued)
- *  2. Achievements collapsible panel
- *  3. Tech tree grouped by tier with multi-level cards
+ *  2. Tech tree grouped by tier with multi-level cards
+ *
+ * Achievements have been moved to Profile → Achievements tab (SettingsUI.js).
  */
 import { eventBus }      from '../../core/EventBus.js';
 import { RES_META, fmt } from '../uiUtils.js';
@@ -33,7 +34,6 @@ export class ResearchUI {
     tree.innerHTML = '';
 
     this._renderQueuePanel(tree);
-    this._renderAchievements(tree);
     this._renderTechTree(tree);
   }
 
@@ -143,41 +143,6 @@ export class ResearchUI {
 
     panel.appendChild(slotsRow);
     container.appendChild(panel);
-  }
-
-  // ─────────────────────────────────────────────
-  // Achievements Panel
-  // ─────────────────────────────────────────────
-
-  _renderAchievements(container) {
-    const achievements = this._s.achievements.getAchievementsWithState();
-    const achCount     = achievements.filter(a => a.unlocked).length;
-
-    const achSection = document.createElement('details');
-    achSection.style.cssText = 'margin:var(--space-4) 0;background:var(--clr-bg-elevated);border:1px solid var(--clr-border);border-radius:var(--radius-lg);overflow:hidden';
-    achSection.open = achCount < achievements.length;
-    achSection.innerHTML = `
-      <summary style="cursor:pointer;padding:var(--space-3) var(--space-4);font-weight:700;font-size:var(--text-sm);list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none">
-        <span>🏆 Achievements</span>
-        <span style="font-size:var(--text-xs);color:var(--clr-text-muted);font-weight:400">${achCount}/${achievements.length} unlocked</span>
-      </summary>
-      <div style="padding:var(--space-3) var(--space-4) var(--space-4)">
-        <div class="achievements-grid">
-          ${achievements.map(a => {
-            const pct = Math.min(100, ((a.progress ?? 0) / a.count) * 100);
-            return `<div class="achievement-card ${a.unlocked ? 'unlocked' : 'locked'}">
-              <div class="achievement-icon">${a.icon}</div>
-              <div class="achievement-body">
-                <div class="achievement-name">${a.name}${a.unlocked ? ' ✅' : ''}</div>
-                <div class="achievement-desc">${a.description}</div>
-                <div class="achievement-rarity ${a.rarity}">${a.rarity}</div>
-                ${!a.unlocked ? `<div class="achievement-progress-bar"><div class="achievement-progress-fill" style="width:${pct}%"></div></div><div style="font-size:10px;color:var(--clr-text-muted);text-align:right">${a.progress ?? 0}/${a.count}</div>` : ''}
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>`;
-    container.appendChild(achSection);
   }
 
   // ─────────────────────────────────────────────

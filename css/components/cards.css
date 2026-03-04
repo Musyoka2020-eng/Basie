@@ -125,6 +125,27 @@
 }
 .building-card .card-icon { font-size: 1.8rem; }
 
+/* Requirements list — shown when a building has multiple unmet conditions */
+.requirements-list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  list-style: disc;
+  color: var(--clr-danger, #e55);
+  font-size: var(--text-xs, 0.7rem);
+  line-height: 1.5;
+}
+
+/* Building info rows — e.g. population / cafeteria capacity hints on house & bank cards */
+.building-info-row {
+  font-size: var(--text-xs, 0.7rem);
+  color: var(--clr-text-muted, #888);
+  padding: 2px 0;
+}
+.building-info-row--warn {
+  color: var(--clr-warning, #e8a84a);
+  font-weight: 600;
+}
+
 /* Instance label (#1, #2 …) inside card title */
 .instance-label {
   font-size: var(--text-xs, 0.7rem);
@@ -1744,6 +1765,40 @@
 .pass-chest-claimed {
   border-color: #4caf50;
   opacity: 0.55;
+}
+
+/* Claimable chest — pulses gold to prompt the player */
+@keyframes chestPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 197, 66, 0.5); }
+  50%       { box-shadow: 0 0 14px rgba(255, 197, 66, 0.95), 0 0 0 3px rgba(255, 197, 66, 0.3); }
+}
+
+.pass-chest-claimable {
+  animation: chestPulse 1.4s ease-in-out infinite;
+  cursor: pointer;
+}
+
+/* Button reset so the chest icon acts as the click target */
+.btn-claim-milestone {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  line-height: 1;
+}
+
+.pass-chest-claim-hint {
+  font-size: 0.45rem;
+  font-weight: 700;
+  color: var(--clr-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .pass-chest-check {

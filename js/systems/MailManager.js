@@ -22,8 +22,12 @@ export class MailManager {
     /** @type {Array<{id, subject, body, icon, type, isRead, isArchived, attachments, rewardsClaimed, timestamp}>} */
     this._messages = [];
     this._nextId = 1;
+    this._inv = null; // set via setInventoryManager() after construction
     this._registerEvents();
   }
+
+  /** @param {import('./InventoryManager.js').InventoryManager} inv */
+  setInventoryManager(inv) { this._inv = inv; }
 
   _registerEvents() {
     eventBus.on('combat:victory', d => {
@@ -78,6 +82,9 @@ export class MailManager {
       icon:           opts.icon ?? '📬',
       isRead:         false,
       isArchived:     false,
+      isInTrash:      false,
+      deletedAt:      null,
+      isImportant:    false,
       attachments:    opts.attachments ?? null,
       rewardsClaimed: false,
       timestamp:      Date.now(),
@@ -99,6 +106,15 @@ export class MailManager {
     }
   }
 
+  markUnread(id) {
+    const msg = this._messages.find(m => m.id === id);
+    if (msg && msg.isRead) {
+      msg.isRead = false;
+      const uc = this.getUnreadCount();
+      eventBus.emit('mail:updated', { unreadCount: uc });
+    }
+  }
+
   markAllRead() {
     this._messages.forEach(m => m.isRead = true);
     eventBus.emit('mail:read',    { unreadCount: 0 });
@@ -112,6 +128,42 @@ export class MailManager {
     const uc = this.getUnreadCount();
     eventBus.emit('mail:read',    { unreadCount: uc });
     eventBus.emit('mail:updated', { unreadCount: uc });
+  }
+
+  // ─── Trash ────────────────────────────────────────────────────────────────
+
+  trashMail(id) {
+    const msg = this._messages.find(m => m.id === id);
+    if (msg) {
+      msg.isInTrash  = true;
+      msg.deletedAt  = Date.now();
+      msg.isArchived = false;
+      eventBus.emit('mail:updated', { unreadCount: this.getUnreadCount() });
+    }
+  }
+
+  restoreMail(id) {
+    const msg = this._messages.find(m => m.id === id);
+    if (msg) {
+      msg.isInTrash = false;
+      msg.deletedAt = null;
+      eventBus.emit('mail:updated', { unreadCount: this.getUnreadCount() });
+    }
+  }
+
+  permanentDelete(id) {
+    this._messages = this._messages.filter(m => m.id !== id);
+    const uc = this.getUnreadCount();
+    eventBus.emit('mail:deleted', { unreadCount: uc });
+    eventBus.emit('mail:updated', { unreadCount: uc });
+  }
+
+  toggleImportant(id) {
+    const msg = this._messages.find(m => m.id === id);
+    if (msg) {
+      msg.isImportant = !msg.isImportant;
+      eventBus.emit('mail:updated', { unreadCount: this.getUnreadCount() });
+    }
   }
 
   // ─── Archive ───────────────────────────────────────────────────────────────
@@ -159,28 +211,31 @@ export class MailManager {
    * @param {import('./ResourceManager.js').ResourceManager} resourceManager
    * @returns {{ success: boolean, rewards?: object, reason?: string }}
    */
-  claimRewards(id, resourceManager) {
+  claimRewards(id) {
     const msg = this._messages.find(m => m.id === id);
     if (!msg)               return { success: false, reason: 'Message not found.' };
     if (!msg.attachments)   return { success: false, reason: 'No attachments.' };
     if (msg.rewardsClaimed) return { success: false, reason: 'Rewards already claimed.' };
 
-    const resourceRewards = {};
-    for (const [k, v] of Object.entries(msg.attachments)) {
-      if (k !== 'xp') resourceRewards[k] = v;
+    // Convert flat attachments { money: 500, wood: 300 } to reward array and
+    // route through InventoryManager so items land in inventory for deferred use.
+    if (this._inv) {
+      const rewardArray = Object.entries(msg.attachments)
+        .filter(([k]) => k !== 'xp')
+        .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+      this._inv.grantRewards(rewardArray);
     }
 
-    resourceManager.add(resourceRewards);
     msg.rewardsClaimed = true;
-    eventBus.emit('mail:rewardsClaimed', { id, rewards: resourceRewards });
+    eventBus.emit('mail:rewardsClaimed', { id, rewards: msg.attachments });
     eventBus.emit('mail:updated', { unreadCount: this.getUnreadCount() });
-    return { success: true, rewards: resourceRewards };
+    return { success: true, rewards: msg.attachments };
   }
 
   // ─── Queries ───────────────────────────────────────────────────────────────
 
-  getMessages()    { return [...this._messages]; }
-  getUnreadCount() { return this._messages.filter(m => !m.isRead && !m.isArchived).length; }
+  getMessages()    { return [...this._messages].sort((a, b) => b.timestamp - a.timestamp); }
+  getUnreadCount() { return this._messages.filter(m => !m.isRead && !m.isArchived && !m.isInTrash).length; }
 
   update(dt) { /* No tick needed */ }
 
@@ -191,7 +246,11 @@ export class MailManager {
   deserialize(data) {
     if (!data) return;
     this._messages = (data.messages ?? []).map(m => ({
-      isArchived: false,
+      isArchived:     false,
+      isInTrash:      false,
+      deletedAt:      null,
+      isImportant:    false,
+      rewardsClaimed: false,
       type: _inferType(m.subject),
       ...m,
     }));

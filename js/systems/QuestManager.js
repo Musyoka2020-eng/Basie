@@ -72,11 +72,8 @@ export class QuestManager {
     if (state.completed) return;
     state.completed = true;
 
-    // Grant rewards (excluding XP, handled by UserManager)
-    const rewardsWithoutXP = { ...cfg.rewards };
-    const xp = rewardsWithoutXP.xp ?? 0;
-    delete rewardsWithoutXP.xp;
-    this._rm.add(rewardsWithoutXP);
+    // Resources delivered via mail attachment — MailManager hears quest:completed below.
+    const xp = cfg.rewards?.xp ?? 0;
     this._um.addXP(xp);
 
     eventBus.emit('quest:completed', {

@@ -198,6 +198,7 @@ export class SettingsUI {
 
   _bindProfileTabContent() {
     this._bindAccountHandlers();
+    this._bindAchievementHandlers();
   }
 
   // ── Profile tab ────────────────────────────────────────────────────
@@ -253,40 +254,81 @@ export class SettingsUI {
     if (!this._s.achievements) {
       return `<p style="color:var(--clr-text-secondary);text-align:center">Achievements unavailable.</p>`;
     }
-    const all      = this._s.achievements.getAchievementsWithState();
-    const unlocked = all.filter(a => a.unlocked).length;
+    const all       = this._s.achievements.getAll();
+    const completed = all.filter(a => a.completed).length;
+    const unclaimed = all.filter(a => a.completed && !a.claimed).length;
+
+    const cardHtml = all.map(a => {
+      const pct     = Math.min(100, Math.round((a.progress / a.target) * 100));
+      const msClass = a.milestone ? ' achievement-milestone' : '';
+      const stClass = a.completed ? ' unlocked' : ' locked';
+
+      // Reward summary line
+      const rewardParts = [];
+      if (a.reward.xp) rewardParts.push(`+${a.reward.xp} XP`);
+      for (const [k, v] of Object.entries(a.reward)) {
+        if (k === 'xp' || k === 'items') continue;
+        if (typeof v === 'number') rewardParts.push(`+${v.toLocaleString()} ${k}`);
+      }
+      if (a.reward.items?.length) rewardParts.push(`+${a.reward.items.length} item(s)`);
+      const rewardLine = rewardParts.length
+        ? `<div style="font-size:10px;color:var(--clr-gold);margin-top:2px">🎁 ${rewardParts.join(' · ')}</div>`
+        : '';
+
+      const claimBtn = (a.completed && !a.claimed)
+        ? `<button class="btn btn-xs btn-primary achievement-claim-btn" data-ach-id="${a.id}" style="margin-top:var(--space-1);width:100%">Claim Reward</button>`
+        : (a.completed && a.claimed)
+          ? `<div style="font-size:10px;color:var(--clr-text-muted);margin-top:2px;text-align:right">✔ Claimed</div>`
+          : '';
+
+      return `
+        <div class="achievement-card${stClass}${msClass}">
+          <div class="achievement-icon">${a.icon}</div>
+          <div class="achievement-body">
+            <div class="achievement-name">${a.name}${a.completed ? ' ✅' : ''}</div>
+            <div class="achievement-desc">${a.description}</div>
+            <div class="achievement-rarity ${a.rarity}">${a.rarity}</div>
+            ${rewardLine}
+            ${!a.completed ? `
+              <div class="achievement-progress-bar" style="margin-top:var(--space-1)">
+                <div class="achievement-progress-fill" style="width:${pct}%"></div>
+              </div>
+              <div style="font-size:10px;color:var(--clr-text-muted);text-align:right">${a.progress.toLocaleString()} / ${a.target.toLocaleString()}</div>
+            ` : ''}
+            ${claimBtn}
+          </div>
+        </div>`;
+    }).join('');
 
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3)">
         <span style="color:var(--clr-text-secondary);font-size:var(--text-sm)">Completed</span>
-        <span style="font-weight:700;color:var(--clr-gold)">${unlocked} / ${all.length}</span>
+        <div style="display:flex;gap:var(--space-3);align-items:center">
+          ${unclaimed > 0 ? `<span style="font-size:var(--text-xs);color:var(--clr-gold);font-weight:700">${unclaimed} unclaimed</span>` : ''}
+          <span style="font-weight:700;color:var(--clr-gold)">${completed} / ${all.length}</span>
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:var(--space-2);max-height:360px;overflow-y:auto;padding-right:4px">
-        ${all.map(a => {
-          const pct = Math.min(100, Math.round(((a.progress ?? 0) / a.count) * 100));
-          const col = RARITY_COLORS[a.rarity] ?? RARITY_COLORS.common;
-          return `
-            <div style="
-              background:var(--clr-bg-elevated);
-              border-radius:var(--radius-md);
-              padding:var(--space-2) var(--space-3);
-              border-left:3px solid ${a.unlocked ? col : 'var(--clr-border)'};
-              opacity:${a.unlocked ? '1' : '0.55'}
-            ">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span style="font-size:var(--text-sm);font-weight:600">${a.icon} ${a.name}</span>
-                <span style="font-size:var(--text-xs);color:${col}">${a.rarity}</span>
-              </div>
-              <div style="font-size:var(--text-xs);color:var(--clr-text-secondary);margin:2px 0 6px">${a.description}</div>
-              <div style="background:var(--clr-bg-surface);border-radius:var(--radius-full);height:4px;overflow:hidden">
-                <div style="background:${col};height:100%;width:${pct}%;transition:width .3s"></div>
-              </div>
-              <div style="font-size:var(--text-xs);color:var(--clr-text-secondary);text-align:right;margin-top:2px">
-                ${(a.progress ?? 0).toLocaleString()} / ${a.count.toLocaleString()}
-              </div>
-            </div>`;
-        }).join('')}
+      <div class="achievements-grid" style="max-height:380px;overflow-y:auto;padding-right:2px">
+        ${cardHtml}
       </div>`;
+  }
+
+  _bindAchievementHandlers() {
+    document.querySelectorAll('.achievement-claim-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        eventBus.emit('ui:click');
+        const id     = btn.dataset.achId;
+        const result = this._s.achievements?.claim(id);
+        if (!result?.success) {
+          btn.disabled    = true;
+          btn.textContent = result?.reason ?? 'Already claimed';
+          return;
+        }
+        // Disable immediately; full re-render fires when achievements:updated arrives.
+        btn.disabled    = true;
+        btn.textContent = '✔ Claimed';
+      });
+    });
   }
 
   // ── Account tab ────────────────────────────────────────────────────

@@ -364,9 +364,17 @@ export class BuildingsUI {
         });
         return `<div class="building-effect-label">${parts.join(' · ')}</div>`;
       }
-      // Storage buildings: show current → next cap delta
+      // Storage buildings: show current → next cap contribution
       if (b.storageCap && b.level > 0) {
-        const parts = Object.entries(b.storageCap).map(([res, capPerLv]) => {
+        // If storageCap uses level-indexed arrays, the effectLabel is more descriptive;
+        // show a compact "current level cap" line for just the top two resources instead.
+        const entries = Object.entries(b.storageCap);
+        const isArrayBased = entries.some(([, v]) => Array.isArray(v));
+        if (isArrayBased) {
+          // Show the effectLabel (already descriptive) — tooltips carry the full numbers
+          return b.effectLabel ? `<div class="building-effect-label">${b.effectLabel}</div>` : '';
+        }
+        const parts = entries.map(([res, capPerLv]) => {
           const icon = RES_META[res]?.icon ?? res;
           const cur  = fmt(capPerLv * b.level);
           if (isMaxed_) return `${icon} +${cur}`;
@@ -384,7 +392,10 @@ export class BuildingsUI {
       ? `<div class="cafeteria-auto-badge">🤖 Auto-restock active</div>` : '';
 
     const cafeteriaStockHtml = (b.id === 'cafeteria' && b.level > 0) ? (() => {
-      const stockCap = 200 * b.level;
+      const _cfp = BUILDINGS_CONFIG['cafeteria']?.foodCapacityPerLevel  ?? 200;
+      const _cwp = BUILDINGS_CONFIG['cafeteria']?.waterCapacityPerLevel ?? 200;
+      const stockCap = Array.isArray(_cfp) ? (_cfp[b.level] ?? 0) : _cfp * b.level;
+      const wtrCap   = Array.isArray(_cwp) ? (_cwp[b.level] ?? 0) : _cwp * b.level;
       const food  = Math.floor(b.stock?.food  ?? 0);
       const water = Math.floor(b.stock?.water ?? 0);
       const depletionStr = (() => {
@@ -397,10 +408,16 @@ export class BuildingsUI {
       })();
       return `<div class="cafeteria-stock">
         <div class="cafeteria-stock-row"><span>🌾 Food stock</span><span>${food} / ${stockCap}</span></div>
-        <div class="cafeteria-stock-row"><span>💧 Water stock</span><span>${water} / ${stockCap}</span></div>
+        <div class="cafeteria-stock-row"><span>💧 Water stock</span><span>${water} / ${wtrCap}</span></div>
         <div class="cafeteria-stock-row cafeteria-depletion"><span>${depletionStr}</span></div>
       </div>`;
     })() : '';
+
+    // Pre-compute restock cap for cafeteria data-cap attribute (array-safe)
+    const _rcfp = BUILDINGS_CONFIG['cafeteria']?.foodCapacityPerLevel ?? 200;
+    const cafRestockCap = b.id === 'cafeteria'
+      ? (Array.isArray(_rcfp) ? (_rcfp[b.level] ?? 0) : _rcfp * b.level)
+      : 0;
 
     const queueBadgeHtml = b.queuedCount > 0 && !b.isActivelyBuilding
       ? `<span class="build-queue-badge">🏗️ ×${b.queuedCount} queued</span>` : '';
@@ -431,6 +448,33 @@ export class BuildingsUI {
     const reqText  = b.requirementsReason ?? '';
     const nextLv   = b.effectiveLevel + 1;
 
+    // Full requirements list (all unmet, not just first)
+    const requirementsListHtml = (() => {
+      const missing = b.missingRequirements ?? [];
+      if (missing.length <= 1) return ''; // single entry already shown in button label
+      return `<ul class="requirements-list">${missing.map(r => `<li>${r}</li>`).join('')}</ul>`;
+    })();
+
+    // House: show cafeteria capacity and population headroom
+    const houseInfoHtml = (b.id === 'house' && b.level > 0) ? (() => {
+      const rm      = this._s.rm;
+      const foodCap = rm?.getFoodCapacity?.() ?? 0;
+      const pop     = rm?.getPopulation?.() ?? { current: 0, cap: 0 };
+      const popPerLv = BUILDINGS_CONFIG['house']?.populationCapacityPerLevel ?? 10;
+      return `<div class="building-info-row">🍽️ Cafeteria stock cap: ${foodCap} &nbsp;·&nbsp; 👥 Pop: ${Math.floor(pop.current)}/${pop.cap} (+${popPerLv} on upgrade)</div>`;
+    })() : '';
+
+    // Bank: show population requirement for next upgrade level
+    const bankInfoHtml = (b.id === 'bank' && !b.isMaxLevel) ? (() => {
+      const lvlReqs = BUILDINGS_CONFIG['bank']?.levelRequirements ?? {};
+      const nextPopReq = lvlReqs[nextLv]?.population;
+      if (!nextPopReq) return '';
+      const rm  = this._s.rm;
+      const pop = rm?.getPopulation?.() ?? { current: 0, cap: 0 };
+      const met = pop.current >= nextPopReq;
+      return `<div class="building-info-row${met ? '' : ' building-info-row--warn'}">👥 Pop for Lv.${nextLv}: ${Math.floor(pop.current)}/${nextPopReq}${met ? ' ✓' : ' ✗'}</div>`;
+    })() : '';
+
     const timeHint = !isMaxed && !b.isActivelyBuilding && b.nextLevelBuildTime
       ? `<span class="tech-time-hint">⏱ ${fmt(b.nextLevelBuildTime)}s</span>` : '';
 
@@ -457,6 +501,9 @@ export class BuildingsUI {
         ${effectLabelHtml}
         ${cafeteriaStockHtml}
         ${automationBadge}
+        ${requirementsListHtml}
+        ${houseInfoHtml}
+        ${bankInfoHtml}
         ${queueBadgeHtml}
         ${hqBenefitsHtml}
         ${hqPreviewHtml}
@@ -466,7 +513,7 @@ export class BuildingsUI {
       <div class="card-footer">
         <button class="btn btn-sm ${btnCls} btn-build" ${btnDisabled ? 'disabled' : ''}>${btnText}</button>
         ${timeHint}
-        ${b.id === 'cafeteria' && b.level > 0 ? `<button class="btn btn-sm btn-primary btn-restock-cafeteria" data-instance="${b.instanceId}" data-cap="${200 * b.level}">🔄 Restock</button>` : ''}
+        ${b.id === 'cafeteria' && b.level > 0 ? `<button class="btn btn-sm btn-primary btn-restock-cafeteria" data-instance="${b.instanceId}" data-cap="${cafRestockCap}">🔄 Restock</button>` : ''}
         ${b.level > 0 && !b.isActivelyBuilding ? `<span style="font-size:var(--text-xs);color:var(--clr-text-muted)">Lv.${b.level}/${b.maxLevel}</span>` : ''}
       </div>`;
 
@@ -533,8 +580,9 @@ export class BuildingsUI {
         if (b.storageCap) {
           Object.entries(b.storageCap).forEach(([res, capPerLv]) => {
             const icon = RES_META[res]?.icon ?? res;
-            const cur  = fmt(capPerLv * b.level);
-            const nxt  = fmt(capPerLv * (b.level + 1));
+            const lv  = b.level;
+            const cur = Array.isArray(capPerLv) ? fmt(capPerLv[lv] ?? 0) : fmt(capPerLv * lv);
+            const nxt = Array.isArray(capPerLv) ? fmt(capPerLv[lv + 1] ?? 0) : fmt(capPerLv * (lv + 1));
             ttParts.push(`<div class="tt-row"><span class="tt-label">${icon} Cap</span><span>+${cur} → <strong>+${nxt}</strong></span></div>`);
           });
         }
@@ -555,11 +603,13 @@ export class BuildingsUI {
 
   /** Build a locked future slot indicator card. */
   _buildLockedSlotCard(bType, slot) {
-    const condText = slot.condition
-      ? Object.entries(slot.condition)
-          .map(([bId, lv]) => `${BUILDINGS_CONFIG[bId]?.name ?? bId} Lv.${lv}`)
-          .join(' + ')
-      : '';
+    // Only show conditions that are not yet satisfied
+    const unmetConditions = slot.condition
+      ? Object.entries(slot.condition).filter(([bId, lv]) => (this._s.bm?.getLevelOf(bId) ?? 0) < lv)
+      : [];
+    const condText = unmetConditions
+      .map(([bId, lv]) => `${BUILDINGS_CONFIG[bId]?.name ?? bId} Lv.${lv}`)
+      .join(' + ');
 
     const card = document.createElement('div');
     card.className = 'card building-card building-card-locked';

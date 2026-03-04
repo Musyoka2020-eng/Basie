@@ -38,10 +38,13 @@ import { eventBus }     from '../core/EventBus.js';
 
 export class UIManager {
   constructor(systems) {
-    this.name     = 'UIManager';
+    this.name      = 'UIManager';
     this._rm       = systems.rm;
+    this._inv      = systems.inventory ?? null;
+    this._mailMgr  = systems.mail     ?? null;
     this._story    = systems.story    ?? null;
     this._tutorial = systems.tutorial ?? null;
+    this._sound    = systems.sound    ?? null;
 
     // Instantiate each controller with only its required systems
     this._navigation = new NavigationUI({
@@ -53,6 +56,7 @@ export class UIManager {
       mail:          systems.mail,
       heroes:        systems.heroes,
       notifications: systems.notifications,
+      achievements:  systems.achievements,
     });
 
     this._buildings = new BuildingsUI({
@@ -226,6 +230,19 @@ export class UIManager {
     // XP float near the player level badge on level-up
     eventBus.on('user:levelUp', () => this._spawnXpFloat());
 
+    // AchievementManager.claim() already calls grantRewards() before emitting
+    // achievement:claimed, so no need to call it again here.
+    // grantRewards() emits inventory:updated → InventoryUI → ui:rewardAnimation,
+    // which is handled below, covering the animation + chime automatically.
+    eventBus.on('achievement:claimed', () => { /* handled via ui:rewardAnimation */ });
+
+    // Floating reward cards + chime — triggered by InventoryUI when it detects
+    // that an inventory:updated event originated from grantRewards().
+    eventBus.on('ui:rewardAnimation', (items) => {
+      this._showRewardAnimation(items);
+      this._sound?.playChime();
+    });
+
     // Perform the full initial render
     this._buildings.render();
     this._barracks.render();
@@ -276,6 +293,35 @@ export class UIManager {
     }, 400);
   }
 
+  /**
+   * Spawn floating reward cards near the inventory icon for each granted item.
+   * Cards pop in with a scale animation then float upward and fade out.
+   * @param {Array<{ type: string, itemId: string, quantity: number }>} itemsArray
+   */
+  _showRewardAnimation(itemsArray) {
+    if (!Array.isArray(itemsArray) || itemsArray.length === 0) return;
+    const anchor   = document.getElementById('btn-inventory');
+    const baseRect = anchor?.getBoundingClientRect();
+    const baseX    = baseRect ? baseRect.left + baseRect.width / 2 - 40 : window.innerWidth - 90;
+    const baseY    = baseRect ? baseRect.bottom + 8 : 64;
+
+    itemsArray.forEach((item, i) => {
+      const icon  = item.type === 'resource'
+        ? (RES_META[item.itemId]?.icon ?? '✨')
+        : '📦';
+      const label = `${icon} ×${item.quantity}`;
+
+      const card = document.createElement('div');
+      card.className   = 'reward-float-card';
+      card.textContent = label;
+      card.style.left  = `${baseX}px`;
+      // Stagger each card so multiple items don't overlap
+      card.style.top   = `${baseY + i * 38}px`;
+      document.body.appendChild(card);
+      card.addEventListener('animationend', () => card.remove(), { once: true });
+    });
+  }
+
   /** Spawn a "+LEVEL UP!" float near the player-level element in the header. */
   _spawnXpFloat() {
     const anchor = document.getElementById('player-level');
@@ -307,8 +353,10 @@ export class UIManager {
    * @param {object} rewards - resource rewards object
    */
   showDailyLoginModal(day, streak, rewards) {
-    const rewardRows = Object.entries(rewards)
-      .map(([k, v]) => `<div class="offline-reward-row"><span>${RES_META[k]?.icon ?? '✨'} ${k}</span><span style="color:var(--clr-success);font-family:var(--font-mono)">+${v.toLocaleString()}</span></div>`)
+    const rewardRows = rewards
+      .map(r => r.type === 'resource'
+        ? `<div class="offline-reward-row"><span>${RES_META[r.itemId]?.icon ?? '\u2728'} ${r.itemId}</span><span style="color:var(--clr-success);font-family:var(--font-mono)">+${r.quantity.toLocaleString()}</span></div>`
+        : `<div class="offline-reward-row"><span>\ud83d\udce6 ${r.itemId.replace(/_/g, ' ')}</span><span style="color:var(--clr-success);font-family:var(--font-mono)">×${r.quantity}</span></div>`)
       .join('');
 
     // 7-day calendar strip
@@ -345,9 +393,29 @@ export class UIManager {
         </div>
       </div>`);
 
-    // Deliver resources and close
+    // Deliver rewards via InventoryManager and close
     document.getElementById('btn-login-claim')?.addEventListener('click', () => {
-      this._rm.add(rewards);
+      this._inv?.grantRewards(rewards);
+
+      // Confirmation mail — summarises what was granted and current streak
+      if (this._mailMgr) {
+        const rewardLines = rewards
+          .map(r => r.type === 'resource'
+            ? `+${r.quantity.toLocaleString()} ${r.itemId}`
+            : `\u00d7${r.quantity} ${r.itemId.replace(/_/g, ' ')}`)
+          .join(', ');
+        const isMilestone = streak % 30 === 0;
+        this._mailMgr.send({
+          type:    'system',
+          subject: isMilestone
+            ? `\ud83c\udf1f ${streak}-Day Milestone Reward Claimed!`
+            : `\ud83c\udf81 Day ${day} Login Reward Claimed`,
+          body:    `Your ${streak}-day streak reward has been added to your account.\n\nRewards: ${rewardLines}`,
+          icon:    '\ud83c\udf81',
+        });
+      }
+
+      eventBus.emit('dailyLogin:modalClosed');
       closeModal();
     });
   }
@@ -419,8 +487,13 @@ export class UIManager {
         lineIndex++;
         renderLine();
       } else {
-        // Grant rewards and close
-        if (this._rm && chapter.rewards) this._rm.add(chapter.rewards);
+        // Grant rewards via tiered bundles and close.
+        if (this._inv && chapter.rewards) {
+          const rewardArray = Object.entries(chapter.rewards)
+            .filter(([, v]) => v > 0)
+            .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+          if (rewardArray.length) this._inv.grantRewards(rewardArray);
+        }
         overlay.classList.add('hidden');
         if (rewardHtml) {
           eventBus.emit('ui:notification', {
@@ -436,7 +509,12 @@ export class UIManager {
     });
     panel.querySelector('#story-btn-skip')?.addEventListener('click', () => {
       eventBus.emit('ui:click');
-      if (this._rm && chapter.rewards) this._rm.add(chapter.rewards);
+      if (this._inv && chapter.rewards) {
+        const rewardArray = Object.entries(chapter.rewards)
+          .filter(([, v]) => v > 0)
+          .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+        if (rewardArray.length) this._inv.grantRewards(rewardArray);
+      }
       overlay.classList.add('hidden');
     });
   }

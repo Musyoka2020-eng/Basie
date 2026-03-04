@@ -296,6 +296,31 @@
   transition: width 0.4s ease;
 }
 
+/* Milestone achievements — top 10% hardest (highest count threshold) */
+.achievement-card.achievement-milestone {
+  border-color: var(--clr-gold);
+  box-shadow: 0 0 0 1px var(--clr-gold)55;
+  position: relative;
+}
+
+.achievement-card.achievement-milestone::before {
+  content: '★';
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  font-size: 14px;
+  color: var(--clr-gold);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Claim button inside achievement cards */
+.achievement-claim-btn {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-1);
+}
+
 /* ---- CUSTOM SQUAD DROPDOWN ---- */
 .squad-dropdown {
   position: relative;

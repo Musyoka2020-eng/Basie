@@ -1,49 +1,57 @@
 /**
  * MailUI.js
- * Two-pane inbox modal with categories, search, multi-select,
- * archive, delete, and per-message read tracking.
+ * Three-panel inbox modal:
+ *   left  — category sidebar (All / System / Rewards / Events / Archived / Trash)
+ *   centre — scrollable mail list with search, read-filter, and pagination
+ *   right  — selected mail reader with full action bar
  */
 import { eventBus } from '../../core/EventBus.js';
 import { RES_META, fmt, openModal, closeModal } from '../uiUtils.js';
 
-const FILTER_LABELS = {
-  all:         { label: 'All',          icon: '📬' },
-  combat:      { label: 'Combat',       icon: '⚔️' },
-  quest:       { label: 'Quests',       icon: '📜' },
-  achievement: { label: 'Achievements', icon: '🏆' },
-  system:      { label: 'System',       icon: '📢' },
-  archived:    { label: 'Archived',     icon: '🗂️' },
+const PAGE_SIZE = 20;
+
+const CATEGORIES = {
+  all:      { label: 'All',      icon: '📬' },
+  system:   { label: 'System',   icon: '📢' },
+  rewards:  { label: 'Rewards',  icon: '🎁' },
+  events:   { label: 'Events',   icon: '⚔️'  },
+  archived: { label: 'Archived', icon: '🗂️'  },
+  trash:    { label: 'Trash',    icon: '🗑️'  },
 };
+
+const READ_FILTERS = [
+  { value: 'all',       label: 'All'       },
+  { value: 'unread',    label: 'Unread'    },
+  { value: 'read',      label: 'Read'      },
+  { value: 'important', label: 'Important' },
+];
 
 export class MailUI {
   /** @param {{ mail, rm, notifications, sound }} systems */
   constructor(systems) {
-    this._s = systems;
-
-    // Local state
-    this._view        = 'inbox';   // 'inbox' | 'archived'
-    this._filter      = 'all';
-    this._search      = '';
-    this._selectedIds = new Set();
-    this._openId      = null;      // currently open message id
+    this._s             = systems;
+    this._category      = 'all';
+    this._readFilt      = 'all';
+    this._search        = '';
+    this._openId        = null;
+    this._page          = 0;
+    this._closeCallback = null;
   }
 
   init() {
     eventBus.on('ui:openMail', () => this.openModal());
-    // Re-render if external changes arrive while modal is open
     eventBus.on('mail:updated', () => this._isOpen() && this._render());
   }
 
   // ─── Public ───────────────────────────────────────────────────────────────
 
   openModal() {
-    this._view        = 'inbox';
-    this._filter      = 'all';
-    this._search      = '';
-    this._selectedIds = new Set();
-    // Don't reset _openId so returning to the modal keeps context
+    this._category = 'all';
+    this._readFilt = 'all';
+    this._search   = '';
+    this._page     = 0;
+    // Preserve _openId so returning to the modal keeps context
 
-    // Add sizing class to the shared modal-content box
     document.getElementById('modal-content')?.classList.add('mail-modal');
 
     const onClose = () => {
@@ -52,8 +60,7 @@ export class MailUI {
     };
     this._closeCallback = onClose;
 
-    openModal('<div class="mail-modal-wrapper" id="mail-root"></div>', onClose);
-
+    openModal('<div class="mail-modal-layout" id="mail-root"></div>', onClose);
     this._render();
   }
 
@@ -63,15 +70,27 @@ export class MailUI {
     return !!document.getElementById('mail-root');
   }
 
-  /** Returns the filtered+searched list for the current view */
-  _visibleMessages() {
-    const all = this._s.mail.getMessages();
-    const isArchived = this._view === 'archived';
-    let msgs = all.filter(m => m.isArchived === isArchived);
-
-    if (this._filter !== 'all') {
-      msgs = msgs.filter(m => m.type === this._filter);
+  /** Filter all messages into the given category bucket */
+  _msgsForCategory(all, cat) {
+    switch (cat) {
+      case 'all':      return all.filter(m => !m.isInTrash && !m.isArchived);
+      case 'system':   return all.filter(m => !m.isInTrash && !m.isArchived && m.type === 'system');
+      case 'rewards':  return all.filter(m => !m.isInTrash && !m.isArchived && ['quest', 'achievement'].includes(m.type));
+      case 'events':   return all.filter(m => !m.isInTrash && !m.isArchived && m.type === 'combat');
+      case 'archived': return all.filter(m =>  m.isArchived && !m.isInTrash);
+      case 'trash':    return all.filter(m =>  m.isInTrash);
+      default:         return all.filter(m => !m.isInTrash && !m.isArchived);
     }
+  }
+
+  /** Returns the filtered, searched list for the current view */
+  _visibleMessages() {
+    const all  = this._s.mail.getMessages();
+    let msgs   = this._msgsForCategory(all, this._category);
+
+    if      (this._readFilt === 'unread')    msgs = msgs.filter(m => !m.isRead);
+    else if (this._readFilt === 'read')      msgs = msgs.filter(m =>  m.isRead);
+    else if (this._readFilt === 'important') msgs = msgs.filter(m =>  m.isImportant);
 
     if (this._search.trim()) {
       const q = this._search.toLowerCase();
@@ -81,6 +100,10 @@ export class MailUI {
       );
     }
     return msgs;
+  }
+
+  _unreadForCat(all, cat) {
+    return this._msgsForCategory(all, cat).filter(m => !m.isRead).length;
   }
 
   _getOpenMessage() {
@@ -94,115 +117,104 @@ export class MailUI {
     const root = document.getElementById('mail-root');
     if (!root) return;
 
+    const all        = this._s.mail.getMessages();
     const visible    = this._visibleMessages();
     const openMsg    = this._getOpenMessage();
-    const allIds     = visible.map(m => m.id);
-    const allChecked = allIds.length > 0 && allIds.every(id => this._selectedIds.has(id));
-    const selCount   = this._selectedIds.size;
+    const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
 
-    // Counts for filter pills
-    const allMsgs    = this._s.mail.getMessages();
-    const inboxMsgs  = allMsgs.filter(m => !m.isArchived);
+    if (this._page >= totalPages) this._page = totalPages - 1;
 
-    const countFor = (type) => type === 'all'
-      ? inboxMsgs.length
-      : type === 'archived'
-      ? allMsgs.filter(m => m.isArchived).length
-      : inboxMsgs.filter(m => m.type === type).length;
+    const pageMsgs = visible.slice(this._page * PAGE_SIZE, (this._page + 1) * PAGE_SIZE);
 
     root.innerHTML = `
-      <!-- ── SIDEBAR ─────────────────────────────── -->
-      <aside class="mail-sidebar">
+      <!-- Close button — absolute top-right of the modal -->
+      <button class="mail-close-abs modal-close" id="mail-close-btn" title="Close">✕</button>
 
-        <div class="mail-sidebar-header">
-          <span class="mail-sidebar-title">📬 Inbox</span>
-          <button class="modal-close" id="mail-close-btn">✕</button>
-        </div>
-
-        <div class="mail-search-wrap">
-          <span class="mail-search-icon">🔍</span>
-          <input
-            class="mail-search-input"
-            id="mail-search"
-            type="text"
-            placeholder="Search messages…"
-            value="${this._search.replace(/"/g, '&quot;')}"
-          />
-          ${this._search ? '<button class="mail-search-clear" id="mail-search-clear">✕</button>' : ''}
-        </div>
-
-        <div class="mail-filter-pills">
-          ${Object.entries(FILTER_LABELS).map(([key, meta]) => {
-            const isActive = key === 'archived'
-              ? this._view === 'archived'
-              : this._view === 'inbox' && this._filter === key;
-            const cnt = countFor(key);
+      <!-- ── LEFT: category sidebar ──────────────────────────────────────── -->
+      <nav class="mail-cat-sidebar">
+        <div class="mail-cat-title">📬 Mail</div>
+        <div class="mail-cat-list">
+          ${Object.entries(CATEGORIES).map(([key, meta]) => {
+            const unread = this._unreadForCat(all, key);
             return `
-              <button class="mail-filter-pill ${isActive ? 'active' : ''}" data-filter="${key}">
-                ${meta.icon} ${meta.label}
-                ${cnt > 0 ? `<span class="mail-pill-count">${cnt}</span>` : ''}
+              <button class="mail-cat-tab ${this._category === key ? 'active' : ''}" data-cat="${key}">
+                <span class="mail-cat-icon">${meta.icon}</span>
+                <span class="mail-cat-label">${meta.label}</span>
+                ${unread > 0 ? `<span class="mail-cat-badge">${unread}</span>` : ''}
               </button>`;
           }).join('')}
         </div>
+      </nav>
 
-        ${selCount > 0 ? `
-        <div class="mail-bulk-bar">
-          <label class="mail-bulk-label">
-            <input type="checkbox" id="mail-select-all" ${allChecked ? 'checked' : ''}> ${selCount} selected
-          </label>
-          <div class="mail-bulk-actions">
-            <button class="btn btn-xs btn-ghost" id="bulk-read-btn" title="Mark Read">✔ Read</button>
-            <button class="btn btn-xs btn-ghost" id="bulk-archive-btn" title="Archive">🗂 Archive</button>
-            <button class="btn btn-xs btn-danger" id="bulk-delete-btn" title="Delete">🗑 Delete</button>
+      <!-- ── CENTER: mail list ────────────────────────────────────────────── -->
+      <div class="mail-list-panel">
+        <div class="mail-list-toolbar">
+          <div class="mail-search-wrap" style="flex:1">
+            <span class="mail-search-icon">🔍</span>
+            <input class="mail-search-input" id="mail-search" type="text"
+              placeholder="Search messages…"
+              value="${this._search.replace(/"/g, '&quot;')}" />
+            ${this._search ? '<button class="mail-search-clear" id="mail-search-clear">✕</button>' : ''}
           </div>
-        </div>` : `
-        <div class="mail-bulk-bar mail-bulk-bar--select">
-          <label class="mail-bulk-label mail-bulk-label--faint">
-            <input type="checkbox" id="mail-select-all" ${allChecked && allIds.length > 0 ? 'checked' : ''}> Select all
-          </label>
-        </div>`}
+          <select class="mail-filter-select" id="mail-read-filter">
+            ${READ_FILTERS.map(f =>
+              `<option value="${f.value}" ${this._readFilt === f.value ? 'selected' : ''}>${f.label}</option>`
+            ).join('')}
+          </select>
+        </div>
 
         <div class="mail-list" id="mail-list">
-          ${visible.length === 0
+          ${pageMsgs.length === 0
             ? `<div class="mail-empty-list">
                 <div class="mail-empty-icon">📭</div>
-                <p>${this._search ? 'No results found.' : this._view === 'archived' ? 'No archived messages.' : 'Inbox empty.'}</p>
+                <p>${
+                  this._search             ? 'No results found.'      :
+                  this._category === 'trash'    ? 'Trash is empty.'        :
+                  this._category === 'archived' ? 'No archived messages.'  :
+                  'Inbox empty.'
+                }</p>
                </div>`
-            : visible.map(m => {
-                const isSelected = this._selectedIds.has(m.id);
-                const isOpen     = m.id === this._openId;
-                const hasReward  = m.attachments && !m.rewardsClaimed;
+            : pageMsgs.map(m => {
+                const isOpen    = m.id === this._openId;
+                const hasReward = m.attachments && !m.rewardsClaimed;
                 return `
-                <div class="mail-item ${m.isRead ? '' : 'unread'} ${isOpen ? 'active' : ''} ${isSelected ? 'selected' : ''}"
-                     data-id="${m.id}">
-                  <input type="checkbox" class="mail-item-check" data-id="${m.id}" ${isSelected ? 'checked' : ''}>
-                  <div class="mail-item-icon">${m.icon}</div>
-                  <div class="mail-item-body">
-                    <div class="mail-item-subject">${m.subject}</div>
-                    <div class="mail-item-preview">${m.body.slice(0, 55)}…</div>
-                  </div>
-                  <div class="mail-item-meta">
-                    <div class="mail-item-time">${_relativeDate(m.timestamp)}</div>
-                    ${hasReward ? '<span class="mail-reward-dot" title="Unclaimed rewards">💰</span>' : ''}
-                  </div>
-                  <div class="mail-item-actions">
-                    <button class="mail-action-btn" data-action="${this._view === 'archived' ? 'unarchive' : 'archive'}" data-id="${m.id}" title="${this._view === 'archived' ? 'Unarchive' : 'Archive'}">🗂</button>
-                    <button class="mail-action-btn mail-action-btn--danger" data-action="delete" data-id="${m.id}" title="Delete">🗑</button>
-                  </div>
-                </div>`;
+                  <div class="mail-row ${m.isRead ? '' : 'mail-row--unread'} ${isOpen ? 'mail-row--active' : ''}"
+                       data-id="${m.id}">
+                    <span class="mail-unread-dot ${m.isRead ? 'mail-unread-dot--read' : ''}"></span>
+                    <span class="mail-row-icon">${m.icon}</span>
+                    <div class="mail-row-info">
+                      <div class="mail-row-subject">${m.subject}</div>
+                      <div class="mail-row-sender">${_senderLabel(m.type)}</div>
+                    </div>
+                    <div class="mail-row-meta">
+                      <span class="mail-row-time">${_relativeDate(m.timestamp)}</span>
+                      ${m.isImportant ? '<span class="mail-row-star" title="Important">★</span>' : ''}
+                      ${hasReward     ? '<span class="mail-row-reward" title="Unclaimed rewards">💰</span>' : ''}
+                    </div>
+                  </div>`;
               }).join('')
           }
         </div>
-      </aside>
 
-      <!-- ── READER ─────────────────────────────── -->
-      <section class="mail-reader" id="mail-reader">
+        <div class="mail-pagination">
+          <button class="btn btn-xs btn-ghost" id="mail-prev" ${this._page === 0 ? 'disabled' : ''}>‹ Prev</button>
+          <span class="mail-page-info">
+            ${visible.length === 0
+              ? 'No messages'
+              : `${this._page * PAGE_SIZE + 1}–${Math.min((this._page + 1) * PAGE_SIZE, visible.length)} of ${visible.length}`}
+          </span>
+          <button class="btn btn-xs btn-ghost" id="mail-next" ${this._page >= totalPages - 1 ? 'disabled' : ''}>Next ›</button>
+        </div>
+      </div>
+
+      <!-- ── RIGHT: mail reader ────────────────────────────────────────────── -->
+      <div class="mail-body-panel" id="mail-reader">
         ${openMsg ? this._renderReader(openMsg) : `
           <div class="mail-reader-empty">
             <div class="mail-reader-empty-icon">📬</div>
             <p>Select a message to read it</p>
           </div>`}
-      </section>`;
+      </div>`;
 
     this._bindEvents();
   }
@@ -215,12 +227,33 @@ export class MailUI {
           .join('')
       : '';
 
+    const isTrash    = !!msg.isInTrash;
+    const isArchived = !!msg.isArchived;
+
+    const actions = isTrash
+      ? `<button class="btn btn-ghost"          id="reader-restore"  data-id="${msg.id}">📤 Restore</button>
+         <button class="btn btn-danger-outline" id="reader-perm-del" data-id="${msg.id}">🗑 Delete Forever</button>`
+      : `<button class="btn btn-ghost" id="reader-read-toggle" data-id="${msg.id}">
+           ${msg.isRead ? '✉️ Mark Unread' : '✔ Mark Read'}
+         </button>
+         <button class="btn btn-ghost" id="reader-star" data-id="${msg.id}" title="Toggle Important">
+           ${msg.isImportant ? '★ Unstar' : '☆ Star'}
+         </button>
+         ${isArchived
+           ? `<button class="btn btn-ghost"          id="reader-unarchive" data-id="${msg.id}">📤 Unarchive</button>`
+           : `<button class="btn btn-ghost"          id="reader-archive"   data-id="${msg.id}">🗂 Archive</button>`
+         }
+         <button class="btn btn-danger-outline" id="reader-trash" data-id="${msg.id}">🗑 Delete</button>
+         ${msg.attachments && !msg.rewardsClaimed
+           ? `<button class="btn btn-gold" id="reader-claim" data-id="${msg.id}">💰 Collect</button>`
+           : ''}`;
+
     return `
       <div class="mail-reader-header">
         <div class="mail-reader-icon">${msg.icon}</div>
         <div class="mail-reader-title-block">
           <div class="mail-reader-subject">${msg.subject}</div>
-          <div class="mail-reader-date">${new Date(msg.timestamp).toLocaleString()}</div>
+          <div class="mail-reader-date">${_senderLabel(msg.type)} · ${new Date(msg.timestamp).toLocaleString()}</div>
         </div>
       </div>
 
@@ -235,158 +268,132 @@ export class MailUI {
         ${msg.rewardsClaimed ? `<p class="mail-claimed-note">✅ Already collected.</p>` : ''}
       </div>` : ''}
 
-      <div class="mail-reader-actions">
-        ${this._view === 'archived'
-          ? `<button class="btn btn-ghost" id="reader-unarchive" data-id="${msg.id}">📤 Unarchive</button>`
-          : `<button class="btn btn-ghost" id="reader-archive"   data-id="${msg.id}">🗂 Archive</button>`}
-        <button class="btn btn-danger-outline" id="reader-delete" data-id="${msg.id}">🗑 Delete</button>
-        ${msg.attachments && !msg.rewardsClaimed
-          ? `<button class="btn btn-gold" id="reader-claim" data-id="${msg.id}">💰 Collect Rewards</button>`
-          : ''}
-      </div>`;
+      <div class="mail-reader-actions">${actions}</div>`;
   }
 
   // ─── Event binding ────────────────────────────────────────────────────────
 
   _bindEvents() {
-    // Close button
+    // Close
     document.getElementById('mail-close-btn')
       ?.addEventListener('click', () => closeModal(this._closeCallback));
 
-    // Search input
-    document.getElementById('mail-search')
-      ?.addEventListener('input', e => {
-        this._search = e.target.value;
-        this._render();
-      });
-
-    document.getElementById('mail-search-clear')
-      ?.addEventListener('click', () => {
-        this._search = '';
-        this._render();
-      });
-
-    // Filter pills
-    document.querySelectorAll('.mail-filter-pill').forEach(btn => {
+    // Category sidebar tabs
+    document.querySelectorAll('.mail-cat-tab').forEach(btn => {
       btn.addEventListener('click', () => {
-        const f = btn.dataset.filter;
-        if (f === 'archived') {
-          this._view = 'archived';
-          this._filter = 'all';
-        } else {
-          this._view = 'inbox';
-          this._filter = f;
-        }
-        this._selectedIds.clear();
+        this._category = btn.dataset.cat;
+        this._page     = 0;
+        this._openId   = null;
         this._render();
       });
     });
 
-    // Select-all checkbox
-    document.getElementById('mail-select-all')?.addEventListener('change', e => {
-      const visible = this._visibleMessages();
-      if (e.target.checked) visible.forEach(m => this._selectedIds.add(m.id));
-      else                  this._selectedIds.clear();
+    // Search input
+    document.getElementById('mail-search')?.addEventListener('input', e => {
+      this._search = e.target.value;
+      this._page   = 0;
+      this._render();
+    });
+    document.getElementById('mail-search-clear')?.addEventListener('click', () => {
+      this._search = '';
+      this._page   = 0;
       this._render();
     });
 
-    // Individual checkboxes
-    document.querySelectorAll('.mail-item-check').forEach(cb => {
-      cb.addEventListener('change', e => {
-        e.stopPropagation();
-        const id = parseInt(cb.dataset.id);
-        if (e.target.checked) this._selectedIds.add(id);
-        else                  this._selectedIds.delete(id);
-        this._render();
-      });
+    // Read filter dropdown
+    document.getElementById('mail-read-filter')?.addEventListener('change', e => {
+      this._readFilt = e.target.value;
+      this._page     = 0;
+      this._render();
     });
 
-    // Mail-item row click (open message)
-    document.querySelectorAll('.mail-item').forEach(item => {
-      item.addEventListener('click', e => {
-        if (e.target.closest('.mail-item-check,.mail-action-btn')) return;
-        const id = parseInt(item.dataset.id);
+    // Mail row click — open message and mark read
+    document.querySelectorAll('.mail-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const id  = parseInt(row.dataset.id);
+        const msg = this._s.mail.getMessages().find(m => m.id === id);
         this._openId = id;
-        this._s.mail.markRead(id);
-        this._render();
+        if (msg && !msg.isRead) {
+          this._s.mail.markRead(id); // emits mail:updated → _render()
+        } else {
+          this._render(); // already read — render directly so the reader updates
+        }
       });
     });
 
-    // Quick action buttons on list items
-    document.querySelectorAll('.mail-action-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const id     = parseInt(btn.dataset.id);
-        const action = btn.dataset.action;
-        this._doAction(action, [id]);
-      });
+    // Pagination
+    document.getElementById('mail-prev')?.addEventListener('click', () => { this._page--; this._render(); });
+    document.getElementById('mail-next')?.addEventListener('click', () => { this._page++; this._render(); });
+
+    // Reader: mark read / unread toggle
+    document.getElementById('reader-read-toggle')?.addEventListener('click', e => {
+      const id  = parseInt(e.currentTarget.dataset.id);
+      const msg = this._s.mail.getMessages().find(m => m.id === id);
+      if (msg?.isRead) this._s.mail.markUnread(id);
+      else             this._s.mail.markRead(id);
+      // emits mail:updated → _render()
     });
 
-    // Bulk action buttons
-    document.getElementById('bulk-read-btn')?.addEventListener('click', () => {
-      this._s.mail.markReadMultiple([...this._selectedIds]);
-      this._selectedIds.clear();
-      this._render();
-    });
-    document.getElementById('bulk-archive-btn')?.addEventListener('click', () => {
-      this._s.mail.archiveMultiple([...this._selectedIds]);
-      if (this._openId && this._selectedIds.has(this._openId)) this._openId = null;
-      this._selectedIds.clear();
-      this._render();
-    });
-    document.getElementById('bulk-delete-btn')?.addEventListener('click', () => {
-      this._s.mail.deleteMultiple([...this._selectedIds]);
-      if (this._openId && this._selectedIds.has(this._openId)) this._openId = null;
-      this._selectedIds.clear();
-      this._render();
+    // Reader: important star toggle
+    document.getElementById('reader-star')?.addEventListener('click', e => {
+      this._s.mail.toggleImportant(parseInt(e.currentTarget.dataset.id));
+      // emits mail:updated → _render()
     });
 
-    // Reader action buttons
+    // Reader: archive
     document.getElementById('reader-archive')?.addEventListener('click', e => {
-      this._doAction('archive', [parseInt(e.currentTarget.dataset.id)]);
+      const id = parseInt(e.currentTarget.dataset.id);
+      this._openId = this._nextVisibleId(id); // set before mutation
+      this._s.mail.archive(id); // emits mail:updated → _render()
     });
+
+    // Reader: unarchive
     document.getElementById('reader-unarchive')?.addEventListener('click', e => {
-      this._doAction('unarchive', [parseInt(e.currentTarget.dataset.id)]);
+      const id = parseInt(e.currentTarget.dataset.id);
+      this._openId = null;          // set before mutation so auto-render sees correct state
+      this._s.mail.unarchive(id);   // emits mail:updated → _render()
     });
-    document.getElementById('reader-delete')?.addEventListener('click', e => {
-      this._doAction('delete', [parseInt(e.currentTarget.dataset.id)]);
+
+    // Reader: delete → move to trash
+    document.getElementById('reader-trash')?.addEventListener('click', e => {
+      const id = parseInt(e.currentTarget.dataset.id);
+      this._openId = this._nextVisibleId(id); // set before mutation
+      this._s.mail.trashMail(id); // emits mail:updated → _render()
     });
+
+    // Reader: restore from trash
+    document.getElementById('reader-restore')?.addEventListener('click', e => {
+      const id = parseInt(e.currentTarget.dataset.id);
+      this._openId = null;           // set before mutation so auto-render sees correct state
+      this._s.mail.restoreMail(id);  // emits mail:updated → _render()
+    });
+
+    // Reader: permanent delete (trash only — requires confirmation)
+    document.getElementById('reader-perm-del')?.addEventListener('click', e => {
+      const id = parseInt(e.currentTarget.dataset.id);
+      if (confirm('Permanently delete this message? This cannot be undone.')) {
+        this._openId = this._nextVisibleId(id); // set before mutation
+        this._s.mail.permanentDelete(id); // emits mail:updated → _render()
+      }
+    });
+
+    // Reader: collect reward attachments
     document.getElementById('reader-claim')?.addEventListener('click', e => {
       eventBus.emit('ui:click');
       const id = parseInt(e.currentTarget.dataset.id);
-      const r  = this._s.mail.claimRewards(id, this._s.rm);
+      const r  = this._s.mail.claimRewards(id); // emits mail:updated → _render()
       if (r.success) {
         this._s.notifications?.show('success', '💰 Rewards Collected!', 'Resources added to your reserves.');
         this._s.sound?.coin?.();
-        this._render();
       } else {
         this._s.notifications?.show('warning', 'Cannot Collect', r.reason);
       }
     });
   }
 
-  // ─── Actions ──────────────────────────────────────────────────────────────
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  _doAction(action, ids) {
-    switch (action) {
-      case 'archive':
-        this._s.mail.archiveMultiple(ids);
-        ids.forEach(id => { if (id === this._openId) this._openId = this._nextVisibleId(id); });
-        break;
-      case 'unarchive':
-        this._s.mail.unarchive(ids[0]);
-        if (ids[0] === this._openId) this._openId = null;
-        break;
-      case 'delete':
-        ids.forEach(id => { if (id === this._openId) this._openId = this._nextVisibleId(id); });
-        this._s.mail.deleteMultiple(ids);
-        break;
-    }
-    ids.forEach(id => this._selectedIds.delete(id));
-    this._render();
-  }
-
-  /** Returns the id of the message after @param currentId in the visible list, or null */
+  /** Returns the id of the message after currentId in the visible list, or null */
   _nextVisibleId(currentId) {
     const list = this._visibleMessages();
     const idx  = list.findIndex(m => m.id === currentId);
@@ -396,7 +403,17 @@ export class MailUI {
   }
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Module-level helpers ────────────────────────────────────────────────────
+
+function _senderLabel(type) {
+  switch (type) {
+    case 'combat':      return 'Battle Command';
+    case 'quest':       return 'Quest Board';
+    case 'achievement': return 'Hall of Records';
+    case 'system':
+    default:            return 'System';
+  }
+}
 
 function _relativeDate(ts) {
   const diff = Date.now() - ts;

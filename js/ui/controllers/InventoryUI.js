@@ -37,11 +37,47 @@ export class InventoryUI {
   constructor(systems) {
     this._s = systems;
     this._renderDebounceTimer = null;
+    // New-item tracking — populated on grantRewards(), cleared when panel opens/closes.
+    this._newItemIds    = new Set(); // item-type reward IDs shown with gold highlight
+    this._hasNewRewards = false;     // true if any reward arrived while panel was closed
+    this._clearNewTimer = null;
+  }
+
+  // ─────────────────────────────────────────────
+  // BADGE
+  // ─────────────────────────────────────────────
+
+  _updateInventoryBadge() {
+    const badge = document.getElementById('inventory-badge');
+    if (!badge) return;
+    if (this._hasNewRewards) {
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  _clearNewItems() {
+    clearTimeout(this._clearNewTimer);
+    this._newItemIds.clear();
+    this._hasNewRewards = false;
+    this._updateInventoryBadge();
+    if (this._isOpen()) this._render();
   }
 
   init() {
     eventBus.on('ui:openInventory',  () => this._open());
-    eventBus.on('inventory:updated', () => {
+    eventBus.on('inventory:updated', (payload) => {
+      // If this update came from grantRewards(), fire the floating reward animation
+      // and track which items are new for badge + card highlight.
+      if (payload?.rewards?.length) {
+        eventBus.emit('ui:rewardAnimation', payload.rewards);
+        this._hasNewRewards = true;
+        for (const r of payload.rewards) {
+          if (r.type === 'item') this._newItemIds.add(r.itemId);
+        }
+        this._updateInventoryBadge();
+      }
       if (!this._isOpen()) return;
       // Debounce rapid updates (e.g. rapid shop purchases) so hero picker isn't destroyed mid-use
       clearTimeout(this._renderDebounceTimer);
@@ -65,11 +101,23 @@ export class InventoryUI {
     panel.classList.add('open');
     this._render();
     overlay.onclick = e => { if (e.target === overlay) this._close(); };
+    // Dismiss the dot badge immediately; let card highlights linger for 3 s then fade.
+    this._hasNewRewards = false;
+    this._updateInventoryBadge();
+    if (this._newItemIds.size > 0) {
+      clearTimeout(this._clearNewTimer);
+      this._clearNewTimer = setTimeout(() => this._clearNewItems(), 3000);
+    }
   }
 
   _close() {
     document.getElementById('inventory-panel-overlay')?.classList.remove('open');
     document.getElementById('inventory-panel')?.classList.remove('open');
+    // Clear highlights and badge on close.
+    clearTimeout(this._clearNewTimer);
+    this._newItemIds.clear();
+    this._hasNewRewards = false;
+    this._updateInventoryBadge();
   }
 
   // ─────────────────────────────────────────────
@@ -102,23 +150,26 @@ export class InventoryUI {
     } else {
       for (let gi = 0; gi < groups.length; gi++) {
         const group    = groups[gi];
-        const isFirst  = gi === 0;
+        // Auto-expand if first group OR if it contains a newly granted item.
+        const hasNew   = group.items.some(i => this._newItemIds.has(i.id));
+        const expanded = gi === 0 || hasNew;
         const totalQty = group.items.reduce((s, i) => s + i.quantity, 0);
         bodyHtml += `
           <div class="inv-group">
-            <button class="inv-group-hdr${isFirst ? '' : ' collapsed'}" aria-expanded="${isFirst ? 'true' : 'false'}">
+            <button class="inv-group-hdr${expanded ? '' : ' collapsed'}" aria-expanded="${expanded ? 'true' : 'false'}">
               <span class="inv-group-label-text">${group.label}</span>
               <span class="inv-group-count">×${totalQty}</span>
               <span class="inv-group-chevron">▾</span>
             </button>
-            <div class="inv-cards-wrap${isFirst ? '' : ' hidden'}">`;
+            <div class="inv-cards-wrap${expanded ? '' : ' hidden'}">`;
         for (const item of group.items) {
           const rarityM    = RARITY_META[item.rarity] ?? {};
           const rarityHtml = rarityM.label
             ? `<div class="inv-card-rarity" style="color:${rarityM.color}">${rarityM.label}</div>`
             : '';
+          const isNew = this._newItemIds.has(item.id);
           bodyHtml += `
-            <div class="inv-card" data-item-id="${item.id}">
+            <div class="inv-card${isNew ? ' inv-card--new' : ''}" data-item-id="${item.id}">
               <div class="inv-card-top">
                 <span class="inv-card-icon">${item.icon}</span>
                 <div class="inv-card-info">

@@ -26,37 +26,50 @@ export class ChallengesUI {
     const weekly     = all.filter(c => c.type === 'weekly');
 
     container.innerHTML = `
-      ${this._renderPassStrip('📅 Daily Pass', 'Resets at midnight', dailyPass)}
+      ${this._renderPassStrip('📅 Daily Pass', 'Resets at midnight', dailyPass, 'daily')}
       ${this._renderSection('📅 Daily Challenges', daily)}
-      ${this._renderPassStrip('📆 Weekly Pass', 'Resets each Monday', weeklyPass)}
+      ${this._renderPassStrip('📆 Weekly Pass', 'Resets each Monday', weeklyPass, 'weekly')}
       ${this._renderSection('📆 Weekly Challenges', weekly)}
     `;
 
     container.querySelectorAll('.btn-claim-challenge').forEach(btn => {
       btn.addEventListener('click', () => this._s.challenges.claimReward(btn.dataset.id));
     });
+
+    container.querySelectorAll('.btn-claim-milestone').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const result = this._s.challenges.claimPassMilestone(btn.dataset.passType, +btn.dataset.msIndex);
+        if (!result?.success) return; // already handled by re-render via challenges:updated
+      });
+    });
   }
 
   /* ── Pass strip ────────────────────────────────────────────── */
 
-  _renderPassStrip(title, subtitle, pass) {
+  _renderPassStrip(title, subtitle, pass, passType) {
     const { xp, maxXp, milestones } = pass;
     const pct = maxXp > 0 ? Math.min(100, Math.round((xp / maxXp) * 100)) : 0;
 
     const chestsHtml = milestones.map(m => {
-      const chestPct = Math.round((m.xp / maxXp) * 100);
-      const classes  = [
+      const chestPct  = Math.round((m.xp / maxXp) * 100);
+      const claimable = m.unlocked && !m.claimed;
+      const classes   = [
         'pass-chest',
-        m.unlocked ? 'pass-chest-unlocked' : '',
-        m.claimed  ? 'pass-chest-claimed'  : '',
+        m.unlocked ? 'pass-chest-unlocked'  : '',
+        m.claimed  ? 'pass-chest-claimed'   : '',
+        claimable  ? 'pass-chest-claimable' : '',
       ].filter(Boolean).join(' ');
 
-      return `
-        <div class="${classes}" style="left:${chestPct}%" title="${m.label}">
-          <span class="pass-chest-icon">${m.icon ?? '📦'}</span>
-          ${m.claimed ? '<span class="pass-chest-check">✓</span>' : ''}
-        </div>
-      `;
+      const inner = m.claimed
+        ? `<span class="pass-chest-icon">${m.icon ?? '📦'}</span><span class="pass-chest-check">✓</span>`
+        : claimable
+          ? `<button class="btn-claim-milestone" data-pass-type="${passType}" data-ms-index="${m.index}" title="Claim: ${m.label}">
+               <span class="pass-chest-icon">${m.icon ?? '📦'}</span>
+               <span class="pass-chest-claim-hint">Claim</span>
+             </button>`
+          : `<span class="pass-chest-icon">${m.icon ?? '📦'}</span>`;
+
+      return `<div class="${classes}" style="left:${chestPct}%">${inner}</div>`;
     }).join('');
 
     const labelsHtml = milestones.map(m => {
@@ -100,9 +113,8 @@ export class ChallengesUI {
     const isDone   = c.completed;
     const isClaimed = c.claimed;
 
-    const rewardText = Object.entries(c.reward)
-      .filter(([k]) => k !== 'items')
-      .map(([k, v]) => `+${v} ${k}`)
+    const rewardText = c.reward
+      .map(r => r.type === 'resource' ? `+${r.quantity} ${r.itemId}` : r.itemId.replace(/_/g, ' '))
       .join(' · ');
 
     const xpBadge = c.xpReward

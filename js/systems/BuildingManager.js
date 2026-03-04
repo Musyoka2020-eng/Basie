@@ -43,6 +43,7 @@ export class BuildingManager {
     /** Population / cafeteria tick state */
     this._cafeteriaShortfall = false;
     this._cafeteriaWarningSent = false;
+    this._cafeteriaShortfallCooldown = 0; // seconds remaining before next shortfall notification can fire
     this._autoRestockTimer   = 0;
     this._automations = { cafeteriaRestock: false };
 
@@ -124,30 +125,45 @@ export class BuildingManager {
     }
 
     // ── Auto-restock cafeteria ─────────────────────────────────────
+    if (this._cafeteriaShortfallCooldown > 0) this._cafeteriaShortfallCooldown -= dt;
     if (this._automations.cafeteriaRestock) {
       this._autoRestockTimer += dt;
+
+      // Emergency path: if any cafeteria instance is completely empty, skip the timer
+      const cafInstances = this._buildings.get('cafeteria') ?? [];
+      const isAnyEmpty = cafInstances.some(inst =>
+        (inst.level ?? 0) > 0 && ((inst.stock?.food ?? 0) <= 0 || (inst.stock?.water ?? 0) <= 0)
+      );
+      if (isAnyEmpty) this._autoRestockTimer = 30; // force restock this tick
+
       if (this._autoRestockTimer >= 30) {
         this._autoRestockTimer = 0;
         const snap = this._rm.getSnapshot();
-        const cafInstances = this._buildings.get('cafeteria') ?? [];
+        const cafCfg = BUILDINGS_CONFIG['cafeteria'];
+        const _cafFp = cafCfg?.foodCapacityPerLevel  ?? 200;
+        const _cafWp = cafCfg?.waterCapacityPerLevel ?? 200;
+        // Keep at least 50 food/water in the global pool; restock whatever remains above that
+        const POOL_RESERVE = 50;
         for (const inst of cafInstances) {
           if ((inst.level ?? 0) <= 0) continue;
-          const stockCap = 200 * inst.level;
-          // Only auto-restock if global pool has > 30% remaining
-          if ((snap.food?.amount ?? 0) > (snap.food?.cap ?? 0) * 0.3 &&
-              (snap.water?.amount ?? 0) > (snap.water?.cap ?? 0) * 0.3) {
-            if (!inst.stock) inst.stock = { food: 0, water: 0 };
-            const foodNeeded  = Math.max(0, stockCap - inst.stock.food);
-            const waterNeeded = Math.max(0, stockCap - inst.stock.water);
-            if (foodNeeded > 0 || waterNeeded > 0) {
-              const cost = {};
-              if (foodNeeded  > 0) cost.food  = Math.min(foodNeeded,  snap.food?.amount  ?? 0);
-              if (waterNeeded > 0) cost.water = Math.min(waterNeeded, snap.water?.amount ?? 0);
-              if (this._rm.spend(cost)) {
-                inst.stock.food  = Math.min(inst.stock.food  + (cost.food  ?? 0), stockCap);
-                inst.stock.water = Math.min(inst.stock.water + (cost.water ?? 0), stockCap);
-                eventBus.emit('building:cafeteria:restocked', { instanceId: inst.instanceId, stock: { ...inst.stock } });
-              }
+          const lv = inst.level;
+          const foodStockCap  = Array.isArray(_cafFp) ? (_cafFp[lv] ?? 0) : _cafFp  * lv;
+          const waterStockCap = Array.isArray(_cafWp) ? (_cafWp[lv] ?? 0) : _cafWp * lv;
+          const globalFood  = snap.food?.amount  ?? 0;
+          const globalWater = snap.water?.amount ?? 0;
+          if (!inst.stock) inst.stock = { food: 0, water: 0 };
+          const foodNeeded  = Math.max(0, foodStockCap  - inst.stock.food);
+          const waterNeeded = Math.max(0, waterStockCap - inst.stock.water);
+          if (foodNeeded > 0 || waterNeeded > 0) {
+            const cost = {};
+            if (foodNeeded  > 0 && globalFood  > POOL_RESERVE)
+              cost.food  = Math.min(foodNeeded,  globalFood  - POOL_RESERVE);
+            if (waterNeeded > 0 && globalWater > POOL_RESERVE)
+              cost.water = Math.min(waterNeeded, globalWater - POOL_RESERVE);
+            if (Object.keys(cost).length > 0 && this._rm.spend(cost)) {
+              inst.stock.food  = Math.min(inst.stock.food  + (cost.food  ?? 0), foodStockCap);
+              inst.stock.water = Math.min(inst.stock.water + (cost.water ?? 0), waterStockCap);
+              eventBus.emit('building:cafeteria:restocked', { instanceId: inst.instanceId, stock: { ...inst.stock } });
             }
           }
         }
@@ -192,12 +208,148 @@ export class BuildingManager {
       }
     } else {
       this._rm.shrinkPopulation(0.02 * dt);
-      // Emit shortfall event only once per shortfall episode
-      if (!this._cafeteriaWarningSent) {
+      // Emit shortfall event at most once per 2-minute cooldown period
+      if (!this._cafeteriaWarningSent && this._cafeteriaShortfallCooldown <= 0) {
         this._cafeteriaWarningSent = true;
+        this._cafeteriaShortfallCooldown = 120;
         eventBus.emit('building:cafeteria:shortfall', { message: 'Cafeteria is out of food or water — population is shrinking!' });
       }
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // Pure query helpers (no side-effects)
+  // ─────────────────────────────────────────────
+
+  /**
+   * Check whether a building slot can be started (slot unlocked + base requires met).
+   * Pure query — no side-effects, no resource changes.
+   * @param {string} buildingId
+   * @param {number} [instanceIndex=0]
+   * @returns {{ ok: boolean, reason?: string }}
+   */
+  canBuild(buildingId, instanceIndex = 0) {
+    const cfg = BUILDINGS_CONFIG[buildingId];
+    if (!cfg) return { ok: false, reason: 'Unknown building.' };
+
+    const unlockedCount = this._getUnlockedInstanceCount(cfg);
+    if (instanceIndex >= unlockedCount) {
+      const slot = cfg.instanceSlots?.[instanceIndex];
+      const cond = slot?.condition;
+      if (cond) {
+        const parts = Object.entries(cond).map(([bId, minLv]) => {
+          const name = BUILDINGS_CONFIG[bId]?.name ?? bId;
+          return `${name} Lv.${minLv}`;
+        });
+        return { ok: false, reason: `Slot locked — requires: ${parts.join(', ')}` };
+      }
+      return { ok: false, reason: 'This building slot is not yet unlocked.' };
+    }
+
+    const reqCheck = this._checkRequirements(cfg.requires);
+    if (!reqCheck.met) return { ok: false, reason: reqCheck.reason };
+
+    return { ok: true };
+  }
+
+  /**
+   * Check whether a building instance can be upgraded to the next level (per-level requires met).
+   * Pure query — no side-effects, no resource changes.
+   * @param {string} buildingId
+   * @param {number} [instanceIndex=0]
+   * @returns {{ ok: boolean, reason?: string }}
+   */
+  canUpgrade(buildingId, instanceIndex = 0) {
+    const cfg = BUILDINGS_CONFIG[buildingId];
+    if (!cfg) return { ok: false, reason: 'Unknown building.' };
+
+    const instances      = this._buildings.get(buildingId) ?? [];
+    const completedLevel = instances[instanceIndex]?.level ?? 0;
+    const queuedCount    = this._buildQueue.filter(
+      q => q.buildingId === buildingId && q.instanceIndex === instanceIndex
+    ).length;
+    const effectiveLevel = completedLevel + queuedCount;
+
+    if (effectiveLevel >= cfg.maxLevel) {
+      return { ok: false, reason: `${cfg.name} #${instanceIndex + 1} is already at max level.` };
+    }
+
+    // Instance ordering: slot N cannot exceed the level of slot N-1
+    if (instanceIndex > 0) {
+      const prevInst      = instances[instanceIndex - 1];
+      const prevCompleted = prevInst?.level ?? 0;
+      const prevQueued    = this._buildQueue.filter(
+        q => q.buildingId === buildingId && q.instanceIndex === instanceIndex - 1
+      ).length;
+      const prevEffective = prevCompleted + prevQueued;
+      if (effectiveLevel + 1 > prevEffective) {
+        return { ok: false, reason: `Upgrade ${cfg.name} #${instanceIndex} to Lv.${effectiveLevel + 1} first.` };
+      }
+    }
+
+    const pendingLevel = effectiveLevel + 1;
+    const lvlReqCheck  = this._checkRequirements(cfg.levelRequirements?.[pendingLevel]);
+    if (!lvlReqCheck.met) return { ok: false, reason: lvlReqCheck.reason };
+
+    return { ok: true };
+  }
+
+  /**
+   * Return all unmet build/upgrade conditions for a building instance as human-readable strings.
+   * Returns an empty array when every requirement is satisfied.
+   * @param {string} buildingId
+   * @param {number} [instanceIndex=0]
+   * @returns {string[]}
+   */
+  getMissingRequirements(buildingId, instanceIndex = 0) {
+    const cfg = BUILDINGS_CONFIG[buildingId];
+    if (!cfg) return ['Unknown building.'];
+
+    const missing = [];
+
+    // Slot condition check
+    const unlockedCount = this._getUnlockedInstanceCount(cfg);
+    if (instanceIndex >= unlockedCount) {
+      const slot = cfg.instanceSlots?.[instanceIndex];
+      const cond = slot?.condition;
+      if (cond) {
+        for (const [bId, minLv] of Object.entries(cond)) {
+          if (this.getLevelOf(bId) < minLv) {
+            const name = BUILDINGS_CONFIG[bId]?.name ?? bId;
+            missing.push(`Requires ${name} Lv.${minLv}`);
+          }
+        }
+      }
+      return missing;
+    }
+
+    // Base requires
+    missing.push(...this._collectMissing(cfg.requires));
+
+    // Per-level requires
+    const instances      = this._buildings.get(buildingId) ?? [];
+    const completedLevel = instances[instanceIndex]?.level ?? 0;
+    const queuedCount    = this._buildQueue.filter(
+      q => q.buildingId === buildingId && q.instanceIndex === instanceIndex
+    ).length;
+    const effectiveLevel = completedLevel + queuedCount;
+    const pendingLevel   = effectiveLevel + 1;
+    missing.push(...this._collectMissing(cfg.levelRequirements?.[pendingLevel]));
+
+    // Instance ordering: slot N cannot exceed the level of slot N-1
+    if (instanceIndex > 0) {
+      const prevInst      = instances[instanceIndex - 1];
+      const prevCompleted = prevInst?.level ?? 0;
+      const prevQueued    = this._buildQueue.filter(
+        q => q.buildingId === buildingId && q.instanceIndex === instanceIndex - 1
+      ).length;
+      const prevEffective = prevCompleted + prevQueued;
+      if (effectiveLevel + 1 > prevEffective) {
+        missing.push(`${cfg.name} #${instanceIndex} must reach Lv.${effectiveLevel + 1} first`);
+      }
+    }
+
+    return missing;
   }
 
   // ─────────────────────────────────────────────
@@ -214,10 +366,9 @@ export class BuildingManager {
     const cfg = BUILDINGS_CONFIG[buildingId];
     if (!cfg) return { success: false, reason: 'Unknown building.' };
 
-    const unlockedCount = this._getUnlockedInstanceCount(cfg);
-    if (instanceIndex >= unlockedCount) {
-      return { success: false, reason: 'This building slot is not yet unlocked.' };
-    }
+    // Slot unlock + base requires
+    const buildCheck = this.canBuild(buildingId, instanceIndex);
+    if (!buildCheck.ok) return { success: false, reason: buildCheck.reason };
 
     const instances      = this._buildings.get(buildingId) ?? [];
     const completedLevel = instances[instanceIndex]?.level ?? 0;
@@ -238,13 +389,11 @@ export class BuildingManager {
       };
     }
 
-    const reqCheck = this._checkRequirements(cfg.requires);
-    if (!reqCheck.met) return { success: false, reason: reqCheck.reason };
+    // Per-level requirements (e.g. House Lv.3 needs Cafeteria Lv.2; Bank Lv.3 needs Population ≥ 20)
+    const upgradeCheck = this.canUpgrade(buildingId, instanceIndex);
+    if (!upgradeCheck.ok) return { success: false, reason: upgradeCheck.reason };
 
     const pendingLevel = effectiveLevel + 1;
-    // Per-level requirements (e.g. House Lv.3 needs Cafeteria Lv.2; Bank Lv.3 needs Population ≥ 20)
-    const lvlReqCheck = this._checkRequirements(cfg.levelRequirements?.[pendingLevel]);
-    if (!lvlReqCheck.met) return { success: false, reason: lvlReqCheck.reason };
 
     const cost = this._scaleCost(cfg.baseCost, cfg.costMultiplier, effectiveLevel);
     if (!this._rm.canAfford(cost)) return { success: false, reason: 'Insufficient resources.' };
@@ -340,13 +489,19 @@ export class BuildingManager {
    */
   getCafeteriaStock() {
     const instances = this._buildings.get('cafeteria') ?? [];
+    const cfg = BUILDINGS_CONFIG['cafeteria'];
+    const _fp = cfg?.foodCapacityPerLevel  ?? 200;
+    const _wp = cfg?.waterCapacityPerLevel ?? 200;
     return instances
       .filter(inst => (inst.level ?? 0) > 0)
       .map(inst => ({
         instanceId: inst.instanceId,
         level: inst.level,
         stock: inst.stock ?? { food: 0, water: 0 },
-        stockCap: { food: 200 * inst.level, water: 200 * inst.level },
+        stockCap: {
+          food:  Array.isArray(_fp) ? (_fp[inst.level]  ?? 0) : _fp  * inst.level,
+          water: Array.isArray(_wp) ? (_wp[inst.level] ?? 0) : _wp * inst.level,
+        },
       }));
   }
 
@@ -366,9 +521,14 @@ export class BuildingManager {
       return { success: false, reason: 'Cafeteria instance not found.' };
     }
     if (!targetInst.stock) targetInst.stock = { food: 0, water: 0 };
-    const stockCap = 200 * targetInst.level;
-    const canAddFood  = Math.max(0, Math.min(foodAmount,  stockCap - targetInst.stock.food));
-    const canAddWater = Math.max(0, Math.min(waterAmount, stockCap - targetInst.stock.water));
+    const cafCfg = BUILDINGS_CONFIG['cafeteria'];
+    const _rFp = cafCfg?.foodCapacityPerLevel  ?? 200;
+    const _rWp = cafCfg?.waterCapacityPerLevel ?? 200;
+    const lv = targetInst.level;
+    const foodStockCap  = Array.isArray(_rFp) ? (_rFp[lv] ?? 0) : _rFp  * lv;
+    const waterStockCap = Array.isArray(_rWp) ? (_rWp[lv] ?? 0) : _rWp * lv;
+    const canAddFood  = Math.max(0, Math.min(foodAmount,  foodStockCap  - targetInst.stock.food));
+    const canAddWater = Math.max(0, Math.min(waterAmount, waterStockCap - targetInst.stock.water));
 
     if (canAddFood === 0 && canAddWater === 0) {
       return { success: false, reason: 'Cafeteria stock is already full.' };
@@ -459,6 +619,11 @@ export class BuildingManager {
         const lvlReqCheck = this._checkRequirements(cfg.levelRequirements?.[effectiveLevel + 1]);
         const finalReqMet    = reqCheck.met && lvlReqCheck.met;
         const finalReqReason = !reqCheck.met ? (reqCheck.reason ?? null) : (lvlReqCheck.reason ?? null);
+        // Collect all unmet requirements for detailed UI display
+        const missingRequirements = [
+          ...this._collectMissing(cfg.requires),
+          ...this._collectMissing(cfg.levelRequirements?.[effectiveLevel + 1]),
+        ];
 
         // Next level build time (raw, before tech reductions) — for UI display
         const rawNextBuildTime = effectiveLevel < cfg.maxLevel
@@ -496,6 +661,7 @@ export class BuildingManager {
           canAfford:          this._rm.canAfford(nextCost),
           requirementsMet:    finalReqMet,
           requirementsReason: finalReqReason,
+          missingRequirements,
           isBuilding:         isActivelyBuilding,
           isActivelyBuilding,
           isQueued:           queuedCount > 0 && !isActivelyBuilding,
@@ -791,9 +957,11 @@ export class BuildingManager {
    * @private
    */
   _recalculateAllCaps() {
-    // Start from base caps for the new resource set
-    const caps = { wood: 5000, stone: 5000, iron: 2000, food: 1000, water: 2000, diamond: Infinity, money: 50000 };
-    let popCap = 0;
+    // Base is zero — storageCap arrays on each building provide the full cap at their level
+    const caps = { wood: 0, stone: 0, iron: 0, food: 0, water: 0, diamond: Infinity, money: 0 };
+    let popCap       = 0;
+    let foodStoreCap = 0;  // total cafeteria food-stock capacity
+    let waterStoreCap = 0; // total cafeteria water-stock capacity
 
     for (const [id, instances] of this._buildings) {
       const cfg = BUILDINGS_CONFIG[id];
@@ -803,15 +971,30 @@ export class BuildingManager {
         for (const inst of instances) {
           if ((inst.level ?? 0) <= 0) continue;
           for (const [res, perLevel] of Object.entries(cfg.storageCap)) {
-            caps[res] = (caps[res] ?? 0) + perLevel * inst.level;
+            const contrib = Array.isArray(perLevel)
+              ? (perLevel[inst.level] ?? 0)
+              : perLevel * inst.level;
+            caps[res] = (caps[res] ?? 0) + contrib;
           }
         }
       }
 
-      // Population cap from houses (10 people per level, absolute max 1000)
+      // Population cap from houses — use config-driven value, hard ceiling 1000
       if (id === 'house') {
+        const popPerLevel = cfg.populationCapacityPerLevel ?? 10;
         for (const inst of instances) {
-          popCap += (inst.level ?? 0) * 10;
+          popCap += (inst.level ?? 0) * popPerLevel;
+        }
+      }
+
+      // Cafeteria food/water stock capacity — use config-driven values
+      if (id === 'cafeteria') {
+        const fpArr = cfg.foodCapacityPerLevel  ?? 200;
+        const wpArr = cfg.waterCapacityPerLevel ?? 200;
+        for (const inst of instances) {
+          const lv = inst.level ?? 0;
+          foodStoreCap  += Array.isArray(fpArr) ? (fpArr[lv] ?? 0) : lv * fpArr;
+          waterStoreCap += Array.isArray(wpArr) ? (wpArr[lv] ?? 0) : lv * wpArr;
         }
       }
     }
@@ -825,6 +1008,8 @@ export class BuildingManager {
       this._rm.setCap(res, finalCap);
     }
     this._rm.setPopulationCap(Math.min(popCap, 1000));
+    this._rm.setFoodCapacity(foodStoreCap);
+    this._rm.setWaterCapacity(waterStoreCap);
   }
 
   /** @private */
@@ -891,5 +1076,27 @@ export class BuildingManager {
       }
     }
     return { met: true };
+  }
+
+  /**
+   * Collect ALL unmet conditions from a requires map as human-readable strings.
+   * Unlike _checkRequirements, does not stop at the first failure.
+   * @private
+   */
+  _collectMissing(requires) {
+    if (!requires) return [];
+    const missing = [];
+    for (const [bId, minLevel] of Object.entries(requires)) {
+      if (bId === 'population') {
+        const pop = this._rm.getPopulation();
+        if (pop.current < minLevel) {
+          missing.push(`Requires Population ≥ ${minLevel} (current: ${Math.floor(pop.current)})`);
+        }
+      } else if (this.getLevelOf(bId) < minLevel) {
+        const name = BUILDINGS_CONFIG[bId]?.name ?? bId;
+        missing.push(`Requires ${name} Lv.${minLevel}`);
+      }
+    }
+    return missing;
   }
 }

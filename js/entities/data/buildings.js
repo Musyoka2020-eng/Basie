@@ -9,10 +9,17 @@ export const BUILDINGS_CONFIG = {
     description: 'The heart of your base. Upgrade to unlock new buildings, increase all caps, and lead a larger population.',
     maxLevel: 10,
     baseCost: { wood: 500, stone: 300 },
-    costMultiplier: 2.0, buildTime: 120,
+    costMultiplier: 1.65, buildTime: 120,
     effects: { unlockBuildings: true },
-    storageCap: { wood: 2000, stone: 2000, iron: 500, food: 500, water: 500, money: 5000 },
-    effectLabel: '📦 +storage cap per level · 🔓 Unlocks buildings',
+    storageCap: {
+      wood:  [0,  3000,  5500, 10000,  18000,  32000,  57000, 100000, 175000,  305000,  530000],
+      stone: [0,  2500,  4500,  8000,  14500,  26000,  46000,  80000, 140000,  245000,  425000],
+      iron:  [0,   800,  1200,  2000,   3300,   5500,   9000,  15000,  24000,   39000,   63000],
+      food:  [0,   800,  1200,  2000,   3300,   5500,   9000,  15000,  24000,   39000,   63000],
+      water: [0,  1000,  1800,  3000,   5000,   8500,  14000,  24000,  40000,   68000,  113000],
+      money: [0,  5000, 10000, 20000,  42000,  88000, 185000, 390000, 820000, 1700000, 3600000],
+    },
+    effectLabel: '📦 Exponential storage cap per level · 🔓 Unlocks buildings',
     category: 'core', requires: null,
     maxInstances: 1,
     instanceSlots: [{ index: 0, condition: null }],
@@ -24,16 +31,16 @@ export const BUILDINGS_CONFIG = {
     maxLevel: 10,
     baseCost: { wood: 80, stone: 30 },
     costMultiplier: 1.6, buildTime: 10,
-    effects: { food: 2 },
-    effectLabel: '🌾 +2 Food/s per level',
+    effects: { food: 0.5 },
+    effectLabel: '🌾 +0.5 Food/s per level',
     category: 'production', requires: null,
     heroCapacity: 1,
     maxInstances: 4,
     instanceSlots: [
       { index: 0, condition: null },
-      { index: 1, condition: { townhall: 3 } },
-      { index: 2, condition: { townhall: 5 } },
-      { index: 3, condition: { townhall: 7 } },
+      { index: 1, condition: { townhall: 3, farm: 2 } },
+      { index: 2, condition: { townhall: 5, farm: 2 } },
+      { index: 3, condition: { townhall: 7, farm: 2 } },
     ],
   },
   mine: {
@@ -42,15 +49,15 @@ export const BUILDINGS_CONFIG = {
     maxLevel: 10,
     baseCost: { wood: 100, stone: 50 },
     costMultiplier: 1.8, buildTime: 15,
-    effects: { iron: 2 },
-    effectLabel: '⚙️ +2 Iron/s per level',
+    effects: { iron: 0.5 },
+    effectLabel: '⚙️ +0.5 Iron/s per level',
     category: 'production', requires: null,
     heroCapacity: 1,
     maxInstances: 3,
     instanceSlots: [
       { index: 0, condition: null },
-      { index: 1, condition: { townhall: 4 } },
-      { index: 2, condition: { townhall: 6 } },
+      { index: 1, condition: { townhall: 4, mine: 2 } },
+      { index: 2, condition: { townhall: 6, mine: 2 } },
     ],
   },
   lumbermill: {
@@ -59,15 +66,15 @@ export const BUILDINGS_CONFIG = {
     maxLevel: 10,
     baseCost: { stone: 80 },
     costMultiplier: 1.7, buildTime: 12,
-    effects: { wood: 2.5 },
-    effectLabel: '🪵 +2.5 Wood/s per level',
+    effects: { wood: 0.8 },
+    effectLabel: '🪵 +0.8 Wood/s per level',
     category: 'production', requires: null,
     heroCapacity: 1,
     maxInstances: 3,
     instanceSlots: [
       { index: 0, condition: null },
-      { index: 1, condition: { townhall: 3 } },
-      { index: 2, condition: { townhall: 5 } },
+      { index: 1, condition: { townhall: 3, lumbermill: 2 } },
+      { index: 2, condition: { townhall: 5, lumbermill: 2 } },
     ],
   },
   quarry: {
@@ -76,15 +83,15 @@ export const BUILDINGS_CONFIG = {
     maxLevel: 10,
     baseCost: { wood: 100, iron: 20 },
     costMultiplier: 1.8, buildTime: 20,
-    effects: { stone: 2 },
-    effectLabel: '🪨 +2 Stone/s per level',
+    effects: { stone: 0.7 },
+    effectLabel: '🪨 +0.7 Stone/s per level',
     category: 'production', requires: null,
     heroCapacity: 1,
     maxInstances: 3,
     instanceSlots: [
       { index: 0, condition: null },
-      { index: 1, condition: { townhall: 4 } },
-      { index: 2, condition: { townhall: 6 } },
+      { index: 1, condition: { townhall: 4, quarry: 2 } },
+      { index: 2, condition: { townhall: 6, quarry: 2 } },
     ],
   },
   storehouse: {
@@ -92,10 +99,17 @@ export const BUILDINGS_CONFIG = {
     description: 'Expands your resource storage. Each level significantly increases all caps.',
     maxLevel: 10,
     baseCost: { wood: 300, stone: 200 },
-    costMultiplier: 1.9, buildTime: 25,
+    costMultiplier: 1.6, buildTime: 25,
     effects: {},
-    storageCap: { wood: 3000, stone: 3000, iron: 1000, food: 1000, water: 1000, money: 10000 },
-    effectLabel: '📦 +3,000 Wood/Stone cap · +1,000 Iron/Food/Water cap · +10,000 Money cap per level',
+    storageCap: {
+      wood:  [0,  5500,  9000, 15000,  25000,  42000,  70000, 117000, 195000,  325000,  545000],
+      stone: [0,  4500,  7000, 12000,  20000,  33000,  55000,  92000, 153000,  255000,  425000],
+      iron:  [0,  2200,  3500,  5700,   9200,  15000,  24000,  39000,  63000,  102000,  165000],
+      food:  [0,  2200,  3500,  5700,   9200,  15000,  24000,  39000,  63000,  102000,  165000],
+      water: [0,  2500,  4000,  6500,  10500,  17000,  27500,  45000,  73000,  119000,  193000],
+      money: [0,  8000, 17000, 35000,  73000, 152000, 318000, 667000, 1400000, 2930000, 6150000],
+    },
+    effectLabel: '📦 Exponential storage cap per level',
     category: 'core', requires: null,
     maxInstances: 2,
     instanceSlots: [
@@ -110,8 +124,8 @@ export const BUILDINGS_CONFIG = {
     maxLevel: 8,
     baseCost: { stone: 80, iron: 20 },
     costMultiplier: 1.7, buildTime: 15,
-    effects: { water: 2 },
-    effectLabel: '💧 +2 Water/s per level',
+    effects: { water: 0.6 },
+    effectLabel: '💧 +0.6 Water/s per level',
     category: 'production', requires: null,
     maxInstances: 3,
     instanceSlots: [
@@ -129,6 +143,7 @@ export const BUILDINGS_CONFIG = {
     costMultiplier: 1.6, buildTime: 20,
     effects: {},
     effectLabel: '👥 +10 population capacity per level',
+    populationCapacityPerLevel: 10,
     category: 'population', requires: { townhall: 1, cafeteria: 1 },
     levelRequirements: {
       3: { cafeteria: 2 }, 4: { cafeteria: 2 },
@@ -154,7 +169,9 @@ export const BUILDINGS_CONFIG = {
     baseCost: { wood: 200, stone: 120 },
     costMultiplier: 1.8, buildTime: 30,
     effects: {},
-    effectLabel: '🍽️ Holds 200 Food + 200 Water stock per level · Feeds housed population',
+    effectLabel: '🍽️ 15-min food+water reserve at each population tier · Feeds housed population',
+    foodCapacityPerLevel:  [0, 10800, 21600, 32400, 39000, 43200, 51600, 54000, 62000],
+    waterCapacityPerLevel: [0, 10800, 21600, 32400, 39000, 43200, 51600, 54000, 62000],
     category: 'core', requires: { townhall: 2, well: 1 },
     maxInstances: 1,
     instanceSlots: [
@@ -170,6 +187,7 @@ export const BUILDINGS_CONFIG = {
     costMultiplier: 2.0, buildTime: 60,
     effects: { money: 5 },
     effectLabel: '🪙 +5 Money/s per level · Efficiency scales with population fill ratio · Higher levels require more residents',
+    coinsPerSecondBase: 5,
     category: 'population', requires: { townhall: 3 },
     levelRequirements: {
       2: { population: 10 },   3: { population: 20 },
@@ -452,4 +470,16 @@ export const HQ_UNLOCK_TABLE = {
     techs:     [],
     benefits:  { productionBonus: 0.20, attackBonus: 0.15, defenseBonus: 0.15, storageBonus: 0.35 },
   },
+};
+
+/**
+ * Economy design parameters — documented constants used when deriving the
+ * storageCap arrays and cafeteria capacity arrays above.
+ */
+export const ECONOMY_PARAMS = {
+  fillTargetSec:      { early: 900, mid: 3600, late: 7200 }, // ideal time to fill storage
+  storageBuffer:      2.0,    // storageCap ≥ 2× most expensive upgrade accessible at that tier
+  cafeteriaBufferSec: 900,    // 15-min food/water reserve at max pop for that cafeteria level
+  thCostMultiplier:   1.65,   // replaced old 2.0 — keeps TH10 organically reachable
+  shCostMultiplier:   1.6,    // replaced old 1.9
 };
