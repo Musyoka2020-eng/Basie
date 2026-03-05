@@ -84,7 +84,7 @@ export const TUTORIAL_STEPS = [
     id:               'train',
     title:            '🪖 Train Your First Unit',
     instruction:      'Go to the Barracks tab, find the Infantry section, and train at least one soldier.',
-    highlight:        'nav-barracks',
+    highlight:        'nav-military',
     navView:          'barracks',
     highlightSelector: '.btn-train:not([disabled])',
     waitFor:          'unit:trained',

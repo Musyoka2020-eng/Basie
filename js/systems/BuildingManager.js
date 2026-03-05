@@ -42,7 +42,6 @@ export class BuildingManager {
 
     /** Population / cafeteria tick state */
     this._cafeteriaShortfall = false;
-    this._cafeteriaWarningSent = false;
     this._cafeteriaShortfallCooldown = 0; // seconds remaining before next shortfall notification can fire
     this._autoRestockTimer   = 0;
     this._automations = { cafeteriaRestock: false };
@@ -202,15 +201,12 @@ export class BuildingManager {
       if (population.current < population.cap) {
         this._rm.growPopulation(0.05 * dt);
       }
-      // Reset warning flag once shortfall clears
-      if (this._cafeteriaWarningSent) {
-        this._cafeteriaWarningSent = false;
-      }
+      // Cafeteria is healthy — reset cooldown so the next genuine shortfall fires immediately
+      this._cafeteriaShortfallCooldown = 0;
     } else {
       this._rm.shrinkPopulation(0.02 * dt);
       // Emit shortfall event at most once per 2-minute cooldown period
-      if (!this._cafeteriaWarningSent && this._cafeteriaShortfallCooldown <= 0) {
-        this._cafeteriaWarningSent = true;
+      if (this._cafeteriaShortfallCooldown <= 0) {
         this._cafeteriaShortfallCooldown = 120;
         eventBus.emit('building:cafeteria:shortfall', { message: 'Cafeteria is out of food or water — population is shrinking!' });
       }

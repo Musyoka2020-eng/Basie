@@ -24,12 +24,14 @@ export class EventManager {
    * @param {import('./ResourceManager.js').ResourceManager} resourceManager
    * @param {import('./MailManager.js').MailManager}         mailManager
    * @param {import('./InventoryManager.js').InventoryManager} inventoryManager
+   * @param {import('./UserManager.js').UserManager} [userManager]
    */
-  constructor(resourceManager, mailManager, inventoryManager) {
+  constructor(resourceManager, mailManager, inventoryManager, userManager) {
     this.name   = 'EventManager';
     this._rm    = resourceManager;
     this._mail  = mailManager;
     this._inv   = inventoryManager;
+    this._um    = userManager ?? null;
 
     /** Id of the currently active event, or null. */
     this._activeEventId = null;
@@ -100,9 +102,9 @@ export class EventManager {
 
   _deactivateEvent(cfg) {
     if (!cfg) { this._activeEventId = null; return; }
-    // Remove production multipliers
+    // Remove production multipliers — tag must match the one used in _activateEvent (cfg.id)
     for (const resourceType of Object.keys(cfg.effects ?? {})) {
-      this._rm.removeModifier(`${cfg.id}:${resourceType}`);
+      this._rm.removeModifier(cfg.id);
     }
     this._activeEventId = null;
     eventBus.emit('events:expired', { event: this._getPublicEvent(cfg) });
@@ -149,11 +151,15 @@ export class EventManager {
     if (!allDone) return;
 
     this._claimedEventIds.add(eventId);
-    if (cfg.reward && this._inv) {
-      const rewardArray = Object.entries(cfg.reward)
-        .filter(([, v]) => v > 0)
-        .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
-      if (rewardArray.length) this._inv.grantRewards(rewardArray);
+    if (cfg.reward) {
+      // XP is granted directly to the player — not via inventory resource bundles
+      if (cfg.reward.xp) this._um?.addXP(cfg.reward.xp);
+      if (this._inv) {
+        const rewardArray = Object.entries(cfg.reward)
+          .filter(([k, v]) => k !== 'xp' && v > 0)
+          .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+        if (rewardArray.length) this._inv.grantRewards(rewardArray);
+      }
     }
     eventBus.emit('events:rewardClaimed', { eventId });
     eventBus.emit('events:updated', this.getPublicState());

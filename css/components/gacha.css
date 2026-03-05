@@ -528,6 +528,148 @@
 .hero-skills-empty { font-size: 0.75rem; color: hsl(225,10%,38%); }
 .btn-summon-frags { width: 100%; font-size: 0.8rem; }
 
+/* ── Multi-pull Results ──────────────────────────────────────────────── */
+
+#gacha-modal-overlay .gacha-multi-summary {
+  width: 100%;
+  max-width: 380px;
+  background: hsl(225,16%,13%);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: relative;
+  z-index: 1;
+  animation: result-pop 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+
+#gacha-modal-overlay .gacha-multi-tally {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: hsl(225,20%,88%);
+  text-align: center;
+  line-height: 1.6;
+}
+
+#gacha-modal-overlay .gacha-multi-heroes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+#gacha-modal-overlay .gacha-multi-heroes-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: hsl(225,10%,48%);
+  width: 100%;
+}
+
+#gacha-modal-overlay .gacha-multi-hero-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+#gacha-modal-overlay .gacha-multi-hero-chip--common    { background: hsl(225,12%,20%); color: #9ca3af; border: 1px solid rgba(156,163,175,0.3); }
+#gacha-modal-overlay .gacha-multi-hero-chip--rare      { background: hsl(220,60%,14%); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
+#gacha-modal-overlay .gacha-multi-hero-chip--legendary { background: hsl(38,55%,12%);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+
+#gacha-modal-overlay .gacha-multi-expand {
+  font-size: 0.78rem;
+  color: hsl(225,10%,48%);
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: none;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  position: relative;
+  z-index: 1;
+  margin-top: -0.3rem;
+}
+#gacha-modal-overlay .gacha-multi-expand:hover {
+  color: hsl(225,20%,80%);
+  border-color: rgba(255,255,255,0.16);
+}
+
+#gacha-modal-overlay .gacha-multi-list {
+  width: 100%;
+  max-width: 380px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+#gacha-modal-overlay .gacha-multi-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 7px;
+  background: rgba(255,255,255,0.025);
+  font-size: 0.78rem;
+}
+
+#gacha-modal-overlay .gacha-multi-row-num {
+  font-size: 0.65rem;
+  color: hsl(225,10%,34%);
+  min-width: 1.4rem;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+#gacha-modal-overlay .gacha-multi-row-icon {
+  font-size: 0.88rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+#gacha-modal-overlay .gacha-multi-row-name {
+  flex: 1;
+  color: hsl(225,15%,72%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#gacha-modal-overlay .gacha-multi-row-tier {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+#gacha-modal-overlay .gacha-multi-row-tier--common    { background: hsl(225,12%,20%); color: #9ca3af; }
+#gacha-modal-overlay .gacha-multi-row-tier--rare      { background: hsl(220,60%,14%); color: #60a5fa; }
+#gacha-modal-overlay .gacha-multi-row-tier--legendary { background: hsl(38,55%,12%);  color: #fbbf24; }
+
+#gacha-modal-overlay .gacha-multi-repeat {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#gacha-modal-overlay .gacha-multi-repeat .gacha-roll-again {
+  flex: 1;
+  font-size: 0.82rem;
+  padding: 0.6rem 0.5rem;
+}
+
+#gacha-modal-overlay .gacha-multi-repeat .gacha-roll-again:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  filter: none;
+}
+
 /* Shop */
 .shop-item-featured {
   position: relative;

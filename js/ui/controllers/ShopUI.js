@@ -30,7 +30,7 @@ export class ShopUI {
   }
 
   _isActive() {
-    return !document.getElementById('view-shop')?.classList.contains('hidden');
+    return !document.getElementById('sub-view-shop')?.classList.contains('hidden');
   }
 
   render() {

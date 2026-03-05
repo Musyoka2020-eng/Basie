@@ -258,7 +258,7 @@ export class MailUI {
       </div>
 
       <div class="mail-reader-body">
-        <p>${msg.body}</p>
+        <p>${msg.body.replace(/\n/g, '<br>')}</p>
       </div>
 
       ${rewardHtml ? `

@@ -34,3 +34,11 @@ export {
 } from './data/progression.js';
 export { STORY_CHAPTERS } from './data/story.js';
 export { EVENTS_CONFIG } from './data/events.js';
+export { TAB_UNLOCK_CONDITIONS, TAB_GROUPS, BUILDING_TAB_MAP } from './data/navigation.js';
+
+/**
+ * DEBUG_CONFIG — controls optional debug features.
+ * Set logPersist: true to write the in-game log buffer to localStorage on page unload
+ * (use Ctrl+Shift+L to open the in-game log overlay at any time).
+ */
+export const DEBUG_CONFIG = { logPersist: false };

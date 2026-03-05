@@ -8,7 +8,7 @@
  */
 import { eventBus } from '../../core/EventBus.js';
 import { RES_META, fmt } from '../uiUtils.js';
-import { VIP_TIERS } from '../../entities/GAME_DATA.js';
+import { VIP_TIERS, TAB_UNLOCK_CONDITIONS, TAB_GROUPS, BUILDING_TAB_MAP, HQ_UNLOCK_TABLE, BUILDINGS_CONFIG, UNITS_CONFIG } from '../../entities/GAME_DATA.js';
 
 export class NavigationUI {
   /**
@@ -18,6 +18,10 @@ export class NavigationUI {
     this._s = systems;
     this._activeView = 'base';
     this._sessionStartMs = Date.now();
+    // Tracks the last-active sub-tab id per group view — derived from TAB_GROUPS so new groups are automatically included
+    this._activeSubTab = Object.fromEntries(Object.keys(TAB_GROUPS).map(k => [k, null]));
+    // Badge store: tabKey → string[] of messages
+    this._badgeStore = new Map();
   }
 
   init() {
@@ -28,6 +32,7 @@ export class NavigationUI {
     this._renderProfile(this._s.user.getProfile());
     this._updateMailBadge(this._s.mail.getUnreadCount());
     this._refreshStatusBar();
+    this._refreshUnlockStates();
     if (this._s.achievements) {
       this._updateAchievementsBadge(this._s.achievements.getAll());
     }
@@ -38,18 +43,116 @@ export class NavigationUI {
     document.querySelectorAll('.nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         eventBus.emit('ui:click');
+        if (btn.classList.contains('nav-tab--locked')) {
+          this._showLockedTooltip(btn, this._getTabLockReason(btn.dataset.view));
+          return;
+        }
         this._switchView(btn.dataset.view);
+      });
+    });
+    this._bindSubTabs();
+  }
+
+  /** Wire click handlers for all horizontal sub-tab buttons inside group views. */
+  _bindSubTabs() {
+    document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        eventBus.emit('ui:click');
+        const groupId   = btn.dataset.group;
+        const subViewId = btn.dataset.subView;
+        if (groupId && subViewId) this._switchSubTab(groupId, subViewId);
       });
     });
   }
 
   _switchView(viewId) {
+    // If this is a group view, just restore its active sub-tab
+    if (TAB_GROUPS[viewId]) {
+      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`view-${viewId}`)?.classList.remove('hidden');
+      document.getElementById(`nav-${viewId}`)?.classList.add('active');
+      this._activeView = viewId;
+
+      const group = TAB_GROUPS[viewId];
+      let subTabId = this._activeSubTab[viewId];
+      const isValidActive = subTabId && this._isSubTabUnlocked(`sub:${subTabId}`);
+      if (!isValidActive) {
+        subTabId = group.subTabs.find(st => this._isSubTabUnlocked(`sub:${st.id}`))?.id
+          ?? group.subTabs[0].id;
+      }
+      this._switchSubTab(viewId, subTabId);
+      return; // ui:viewChanged emitted inside _switchSubTab
+    }
+
+    // Check if viewId is a sub-tab viewId living inside a group
+    // (e.g. 'barracks', 'shop', 'quests', 'challenges', 'market', 'military')
+    for (const [groupId, group] of Object.entries(TAB_GROUPS)) {
+      const subTab = group.subTabs.find(st => st.viewId === viewId);
+      if (subTab) {
+        // Navigate to the parent group view, then activate this sub-tab
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`view-${groupId}`)?.classList.remove('hidden');
+        document.getElementById(`nav-${groupId}`)?.classList.add('active');
+        this._activeView = groupId;
+        this._switchSubTab(groupId, subTab.id);
+        return;
+      }
+    }
+
+    // Standalone view (base, heroes, combat, research, events)
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`view-${viewId}`)?.classList.remove('hidden');
     document.getElementById(`nav-${viewId}`)?.classList.add('active');
     this._activeView = viewId;
+    this._clearBadge(viewId);
     eventBus.emit('ui:viewChanged', viewId);
+  }
+
+  /**
+   * Switch the active sub-tab within a group view.
+   * @param {string} groupId   — key in TAB_GROUPS (e.g. 'military')
+   * @param {string} subTabId  — sub-tab id (e.g. 'barracks', 'training')
+   */
+  _switchSubTab(groupId, subTabId) {
+    const group = TAB_GROUPS[groupId];
+    if (!group) return;
+
+    // Update sub-tab button active state
+    document.querySelectorAll(`.sub-tab-btn[data-group="${groupId}"]`).forEach(b => {
+      b.classList.toggle('active', b.dataset.subView === subTabId);
+    });
+
+    // Hide all sub-views and the locked card for this group
+    group.subTabs.forEach(st => {
+      document.getElementById(`sub-view-${st.id}`)?.classList.add('hidden');
+    });
+    const lockedCard = document.getElementById(`sub-locked-${groupId}`);
+    lockedCard?.classList.add('hidden');
+
+    const unlocked = this._isSubTabUnlocked(`sub:${subTabId}`);
+
+    if (unlocked) {
+      document.getElementById(`sub-view-${subTabId}`)?.classList.remove('hidden');
+      this._activeSubTab[groupId] = subTabId;
+      this._clearBadge(`sub:${subTabId}`);
+      // Emit the viewId the domain controller expects (e.g. 'barracks', 'military')
+      const subTabCfg = group.subTabs.find(st => st.id === subTabId);
+      eventBus.emit('ui:viewChanged', subTabCfg?.viewId ?? subTabId);
+    } else {
+      // Show locked-state card with unlock requirement
+      if (lockedCard) {
+        const cond  = TAB_UNLOCK_CONDITIONS[`sub:${subTabId}`];
+        const label = group.subTabs.find(st => st.id === subTabId)?.label ?? subTabId;
+        const titleEl  = lockedCard.querySelector('.locked-title');
+        const reasonEl = lockedCard.querySelector('.locked-reason');
+        if (titleEl)  titleEl.textContent  = `${label} — Locked`;
+        if (reasonEl) reasonEl.textContent = cond?.label ?? 'Complete earlier objectives to unlock.';
+        lockedCard.classList.remove('hidden');
+      }
+    }
   }
 
   _bindHeaderButtons() {
@@ -83,17 +186,21 @@ export class NavigationUI {
     eventBus.on('mail:deleted',           d    => this._updateMailBadge(d.unreadCount));
     eventBus.on('mail:updated',           d    => this._updateMailBadge(d.unreadCount));
     eventBus.on('game:saved',             ()   => this._flashSaveIndicator());
-    eventBus.on('tick:ui',               ()   => this._refreshStatusBar());
-    eventBus.on('building:completed',     ()   => this._refreshStatusBar());
+    eventBus.on('tick:ui',               ()   => { this._refreshStatusBar(); this._refreshBuffBadgeTick(); });
+    eventBus.on('building:completed', d => {
+      this._refreshStatusBar();
+      this._refreshUnlockStates();
+      this._renderAllBadges(); // keep badge visuals in sync after unlock state changes
+      this._onBuildingCompleted(d);
+    });
     eventBus.on('building:started',       ()   => this._refreshStatusBar());
-    eventBus.on('unit:trained',           ()   => this._refreshStatusBar());
+    eventBus.on('unit:trained',           d    => { this._refreshStatusBar(); if (d) this._onUnitTrained(d); });
     eventBus.on('army:updated',           ()   => this._refreshStatusBar());
-    eventBus.on('tech:researched',        ()   => this._refreshStatusBar());
+    eventBus.on('tech:researched',        d    => { this._refreshStatusBar(); if (d) this._onTechResearched(d); });
     eventBus.on('tech:started',           ()   => this._refreshStatusBar());
     eventBus.on('ui:navigateTo',          v    => this._switchView(v));
     eventBus.on('population:updated',     ()   => this._refreshStatusBar());
     eventBus.on('buffs:updated',          buffs => this._updateBuffBadge(buffs));
-    eventBus.on('tick:ui',                ()   => this._refreshBuffBadgeTick());
     eventBus.on('building:cafeteria:shortfall', () => {
       this._s.notifications?.show('warning', '🍽️ Food Running Low', 'Cafeteria supplies are critically low — population is shrinking!');
     });
@@ -106,7 +213,253 @@ export class NavigationUI {
     eventBus.on('achievements:updated', all        => this._updateAchievementsBadge(all));
   }
 
-  // ---- RESOURCES ----
+  // ---- TAB UNLOCK STATES ----
+  /**
+   * Re-evaluate every nav button and sub-tab button.
+   * Applies '.nav-tab--locked' to locked top-level buttons and
+   * '.sub-tab-btn--locked' to locked sub-tab buttons.
+   * Called on init and every time a building completes.
+   */
+  _refreshUnlockStates() {
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      const viewId = btn.dataset.view;
+      if (!viewId) return;
+      const locked = !this._isTabUnlocked(viewId);
+      btn.classList.toggle('nav-tab--locked', locked);
+      btn.setAttribute('aria-disabled', String(locked));
+    });
+
+    document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+      const subViewId = btn.dataset.subView;
+      if (!subViewId) return;
+      const locked = !this._isSubTabUnlocked(`sub:${subViewId}`);
+      btn.classList.toggle('sub-tab-btn--locked', locked);
+    });
+  }
+
+  /** Returns true if the top-level tab for viewId is currently accessible. */
+  _isTabUnlocked(viewId) {
+    const cond = TAB_UNLOCK_CONDITIONS[viewId];
+    if (!cond) return true;
+    return this._checkCondition(cond, viewId);
+  }
+
+  /** Returns true if a sub-tab (keyed as 'sub:id') is currently accessible. */
+  _isSubTabUnlocked(subKey) {
+    const cond = TAB_UNLOCK_CONDITIONS[subKey];
+    if (!cond) return true;
+    return this._checkCondition(cond, subKey);
+  }
+
+  _checkCondition(cond, key) {
+    switch (cond.type) {
+      case 'always':       return true;
+      case 'building':     return (this._s.bm.getLevelOf(cond.buildingId) ?? 0) >= 1;
+      case 'building_any': return cond.buildingIds.some(id => (this._s.bm.getLevelOf(id) ?? 0) >= 1);
+      case 'hq_level':     return (this._s.bm.getLevelOf('townhall') ?? 0) >= cond.level;
+      case 'group_any': {
+        const group = TAB_GROUPS[key];
+        return group?.subTabs.some(st => this._isSubTabUnlocked(`sub:${st.id}`)) ?? true;
+      }
+      default: return true;
+    }
+  }
+
+  _getTabLockReason(viewId) {
+    const cond = TAB_UNLOCK_CONDITIONS[viewId];
+    if (!cond || cond.type === 'group_any') {
+      // For group tabs, derive the reason from the first locked sub-tab
+      const group = TAB_GROUPS[viewId];
+      if (group) {
+        const firstLocked = group.subTabs.find(st => !this._isSubTabUnlocked(`sub:${st.id}`));
+        if (firstLocked) {
+          const sc = TAB_UNLOCK_CONDITIONS[`sub:${firstLocked.id}`];
+          return sc?.label ?? 'Complete earlier objectives to unlock.';
+        }
+      }
+    }
+    return cond?.label ?? 'Complete earlier objectives to unlock.';
+  }
+
+  /**
+   * Show a small tooltip near btn for 2.5 seconds stating the lock reason.
+   * Positioned to the right of the nav sidebar button.
+   */
+  _showLockedTooltip(btn, message) {
+    document.getElementById('tab-lock-tooltip')?.remove();
+    const tooltip = document.createElement('div');
+    tooltip.id        = 'tab-lock-tooltip';
+    tooltip.className = 'tab-unlock-tooltip';
+    tooltip.textContent = `🔒 ${message}`;
+    const rect = btn.getBoundingClientRect();
+    tooltip.style.top  = `${rect.top + window.scrollY + rect.height / 2}px`;
+    tooltip.style.left = `${rect.right + window.scrollX + 8}px`;
+    document.body.appendChild(tooltip);
+    setTimeout(() => tooltip.classList.add('tab-unlock-tooltip--fade'), 2000);
+    setTimeout(() => tooltip.remove(), 2500);
+  }
+
+  // ---- ACTIVITY BADGES ----
+
+  /**
+   * Add a badge message for a tab. 'tabKey' matches keys in TAB_UNLOCK_CONDITIONS
+   * (e.g. 'base', 'research', 'heroes', 'sub:training', 'sub:barracks').
+   */
+  _addBadge(tabKey, message) {
+    if (!tabKey) return;
+    const msgs = this._badgeStore.get(tabKey) ?? [];
+    msgs.push(message);
+    this._badgeStore.set(tabKey, msgs);
+    this._renderAllBadges();
+  }
+
+  /** Clear all badge messages for a tab and re-render. */
+  _clearBadge(tabKey) {
+    if (!this._badgeStore.has(tabKey)) return;
+    this._badgeStore.delete(tabKey);
+    this._renderAllBadges();
+  }
+
+  /** True if any sub-tab in the given group has pending badges. */
+  _hasGroupBadge(groupId) {
+    const group = TAB_GROUPS[groupId];
+    if (!group) return false;
+    return group.subTabs.some(st => this._badgeStore.has(`sub:${st.id}`));
+  }
+
+  /** Apply or remove badge dots and chips on all nav buttons. */
+  _renderAllBadges() {
+    // Standalone top-level tabs — derived dynamically so newly added tabs are included automatically
+    const standaloneKeys = Object.keys(TAB_UNLOCK_CONDITIONS).filter(k => !k.startsWith('sub:') && !TAB_GROUPS[k]);
+    for (const key of standaloneKeys) {
+      const btn = document.getElementById(`nav-${key}`);
+      if (!btn) continue;
+      btn.classList.toggle('tab-has-badge', this._badgeStore.has(key));
+      this._applyBadgeDot(btn, this._badgeStore.get(key) ?? []);
+    }
+    // Group parent buttons — dot if any child sub-tab has badges
+    for (const [groupId, group] of Object.entries(TAB_GROUPS)) {
+      const btn = document.getElementById(`nav-${groupId}`);
+      if (btn) {
+        const hasBadge = this._hasGroupBadge(groupId);
+        btn.classList.toggle('tab-has-badge', hasBadge);
+        const allMsgs = hasBadge
+          ? group.subTabs.flatMap(st => this._badgeStore.get(`sub:${st.id}`) ?? [])
+          : [];
+        this._applyBadgeDot(btn, allMsgs);
+      }
+      // Sub-tab buttons
+      for (const st of group.subTabs) {
+        const subBtn = document.querySelector(
+          `.sub-tab-btn[data-group="${groupId}"][data-sub-view="${st.id}"]`
+        );
+        if (!subBtn) continue;
+        const msgs = this._badgeStore.get(`sub:${st.id}`) ?? [];
+        subBtn.classList.toggle('tab-has-badge', msgs.length > 0);
+        this._applyBadgeDot(subBtn, msgs);
+      }
+    }
+  }
+
+  /** Add or remove the attention dot + chip on a single button element. */
+  _applyBadgeDot(btn, messages) {
+    let dot  = btn.querySelector('.tab-attention-dot');
+    let chip = btn.querySelector('.tab-attention-chip');
+    if (messages.length === 0) {
+      dot?.remove();
+      chip?.remove();
+      return;
+    }
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'tab-attention-dot';
+      btn.appendChild(dot);
+    }
+    if (!chip) {
+      chip = document.createElement('span');
+      chip.className = 'tab-attention-chip';
+      btn.appendChild(chip);
+    }
+    chip.textContent = messages[messages.length - 1]; // show most recent
+  }
+
+  // ---- BADGE EVENT HANDLERS ----
+
+  _onBuildingCompleted(d) {
+    if (!d) return;
+    const buildingId   = d.id; // always set per BuildingManager emit
+    const cfg          = buildingId ? BUILDINGS_CONFIG[buildingId] : null;
+    const buildingName = cfg?.name ?? buildingId ?? 'Building';
+
+    // Badge 'base' whenever a building finishes (if not already on base)
+    if (this._activeView !== 'base') {
+      this._addBadge('base', `${buildingName} complete`);
+    }
+
+    // Badge the mapped gameplay tab if the player isn't already viewing it
+    const tabKey = buildingId ? BUILDING_TAB_MAP[buildingId] : null;
+    if (tabKey) {
+      const isSub  = tabKey.startsWith('sub:');
+      const subId  = isSub ? tabKey.slice(4) : null;
+      const isVisible = isSub
+        ? this._activeSubTab[this._getGroupForSubTab(subId)] === subId
+        : this._activeView === tabKey;
+      if (!isVisible) {
+        this._addBadge(tabKey, `${buildingName} ready`);
+      }
+    }
+
+    // HQ level-up → badge newly unlocked buildings' tabs
+    if (buildingId === 'townhall' && d.building?.level) {
+      const unlocked = HQ_UNLOCK_TABLE[d.building.level]?.buildings ?? [];
+      for (const bid of unlocked) {
+        const name   = BUILDINGS_CONFIG[bid]?.name ?? bid;
+        if (this._activeView !== 'base') {
+          this._addBadge('base', `New: ${name}`);
+        }
+        const bTabKey = BUILDING_TAB_MAP[bid];
+        if (bTabKey) {
+          const bIsSub  = bTabKey.startsWith('sub:');
+          const bSubId  = bIsSub ? bTabKey.slice(4) : null;
+          const bVisible = bIsSub
+            ? this._activeSubTab[this._getGroupForSubTab(bSubId)] === bSubId
+            : this._activeView === bTabKey;
+          if (!bVisible) {
+            this._addBadge(bTabKey, `Unlocked: ${name}`);
+          }
+        }
+      }
+    }
+  }
+
+  _onUnitTrained(d) {
+    if (!d) return;
+    const trainingGroup  = this._getGroupForSubTab('training');
+    const isTrainingOpen = this._activeSubTab[trainingGroup] === 'training';
+    if (!isTrainingOpen) {
+      const unitCfg = d.tierKey ? UNITS_CONFIG[d.tierKey] : null;
+      const label   = unitCfg?.name ?? d.tierKey ?? 'Unit';
+      this._addBadge('sub:training', `Training complete: ${label}`);
+    }
+  }
+
+  _onTechResearched(d) {
+    if (this._activeView !== 'research') {
+      const name = d.name ?? 'Technology';
+      const lvl  = d.level ? ` Lv ${d.level}` : '';
+      this._addBadge('research', `${name}${lvl} researched`);
+    }
+  }
+
+  /** Returns the group id containing a given sub-tab id, or null. */
+  _getGroupForSubTab(subTabId) {
+    for (const [groupId, group] of Object.entries(TAB_GROUPS)) {
+      if (group.subTabs.some(st => st.id === subTabId)) return groupId;
+    }
+    return null;
+  }
+
+
   _renderResources(snap) {
     for (const key of Object.keys(RES_META)) {
       if (key === 'xp') continue;

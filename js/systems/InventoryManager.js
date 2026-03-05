@@ -100,18 +100,24 @@ export class InventoryManager {
    */
   grantRewards(rewardArray) {
     if (!Array.isArray(rewardArray)) return [];
+    // Collect resolved bundle item entries so InventoryUI can show the NEW highlight
+    // on the actual bundle cards (resource entries don't carry itemIds of bundles).
+    const resolvedBundleEntries = [];
     for (const r of rewardArray) {
       if (r.type === 'resource') {
         // Decompose the amount into tiered bundles (greedy, largest-first).
         const splits = _splitIntoTierBundles(r.itemId, r.quantity);
-        for (const { bundleId, qty } of splits) this.addItem(bundleId, qty);
+        for (const { bundleId, qty } of splits) {
+          this.addItem(bundleId, qty);
+          resolvedBundleEntries.push({ type: 'item', itemId: bundleId, quantity: qty });
+        }
       } else if (r.type === 'item') {
         this.addItem(r.itemId, r.quantity);
       }
     }
 
     if (rewardArray.length > 0) {
-      eventBus.emit('inventory:updated', { rewards: rewardArray });
+      eventBus.emit('inventory:updated', { rewards: [...rewardArray, ...resolvedBundleEntries] });
     }
     return rewardArray;
   }
@@ -225,8 +231,12 @@ export class InventoryManager {
 
     } else if (cfg.type === 'resource_bundle') {
       if (!this._rm) return { success: false, reason: 'Resource system not available.' };
-      this.removeItem(itemId, 1);
-      this._rm.add(cfg.grants);
+      try {
+        this._rm.add(cfg.grants);          // add resources FIRST
+        this.removeItem(itemId, 1);        // only consume item on success
+      } catch (err) {
+        return { success: false, reason: 'Failed to grant resources.' };
+      }
       eventBus.emit('inventory:itemUsed', { itemId, grants: cfg.grants });
       return { success: true, grants: cfg.grants };
 
@@ -261,6 +271,24 @@ export class InventoryManager {
       eventBus.emit('inventory:itemUsed', { itemId, target, skipSeconds: cfg.skipSeconds });
       return { success: true, remaining: result.remaining, completed: result.completed, target };
 
+    } else if (cfg.type === 'slot_purchase') {
+      // B17 — unlock an extra build or research queue slot
+      if (cfg.slotType === 'build') {
+        if (!this._bm) return { success: false, reason: 'Building system not available.' };
+        if (this._bm.isShopBuildSlotBought()) return { success: false, reason: 'Build slot already unlocked.' };
+        this._bm.grantShopBuildSlot();
+      } else if (cfg.slotType === 'research') {
+        if (!this._tm) return { success: false, reason: 'Research system not available.' };
+        if (this._tm.isShopResearchSlotBought()) return { success: false, reason: 'Research slot already unlocked.' };
+        this._tm.grantShopResearchSlot();
+      } else {
+        return { success: false, reason: 'Unknown slot type.' };
+      }
+      if (cfg.bonus && this._rm) this._rm.add(cfg.bonus);
+      this.removeItem(itemId, 1);
+      eventBus.emit('inventory:itemUsed', { itemId, slotType: cfg.slotType });
+      return { success: true, slotType: cfg.slotType };
+
     }
     return { success: false, reason: 'This item cannot be used.' };
   }
@@ -285,5 +313,7 @@ export class InventoryManager {
     for (const [id, qty] of Object.entries(data.items)) {
       if (qty > 0 && INVENTORY_ITEMS[id]) this._items.set(id, qty);
     }
+    // P12: notify UI panels to refresh after a save load
+    eventBus.emit('inventory:updated', { source: 'load' });
   }
 }

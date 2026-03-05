@@ -31,12 +31,14 @@ export class MailManager {
 
   _registerEvents() {
     eventBus.on('combat:victory', d => {
+      // Strip xp from attachments — XP is already granted directly at victory time.
+      const { xp: _xp, ...attachmentRewards } = d.rewards ?? {};
       this.send({
         type: 'combat',
         subject: '⚔️ Combat Report: Victory',
         body: `Your forces stood firm and defeated the enemy! All spoils of war have been recorded below. Collect them to add to your reserves.`,
         icon: '📋',
-        attachments: d.rewards,
+        attachments: attachmentRewards,
       });
     });
     eventBus.on('combat:defeat', () => {
@@ -212,6 +214,7 @@ export class MailManager {
    * @returns {{ success: boolean, rewards?: object, reason?: string }}
    */
   claimRewards(id) {
+    if (!this._inv) return { success: false, reason: 'Inventory system not available.' };
     const msg = this._messages.find(m => m.id === id);
     if (!msg)               return { success: false, reason: 'Message not found.' };
     if (!msg.attachments)   return { success: false, reason: 'No attachments.' };
@@ -219,12 +222,10 @@ export class MailManager {
 
     // Convert flat attachments { money: 500, wood: 300 } to reward array and
     // route through InventoryManager so items land in inventory for deferred use.
-    if (this._inv) {
-      const rewardArray = Object.entries(msg.attachments)
-        .filter(([k]) => k !== 'xp')
-        .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
-      this._inv.grantRewards(rewardArray);
-    }
+    const rewardArray = Object.entries(msg.attachments)
+      .filter(([k]) => k !== 'xp')
+      .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+    this._inv.grantRewards(rewardArray);
 
     msg.rewardsClaimed = true;
     eventBus.emit('mail:rewardsClaimed', { id, rewards: msg.attachments });

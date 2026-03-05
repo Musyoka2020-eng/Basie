@@ -270,6 +270,61 @@ export class TechnologyManager {
     });
   }
 
+  /**
+   * Returns whether a tech can currently be researched and, if not, why.
+   * Unlike research(), this is read-only — no side effects.
+   * @param {string} techId
+   * @returns {{ canResearch: boolean, missingRequirements: string[] }}
+   */
+  canResearch(techId) {
+    const cfg = TECH_CONFIG[techId];
+    if (!cfg) return { canResearch: false, missingRequirements: ['Unknown technology.'] };
+
+    const state        = this._state.get(techId);
+    const currentLevel = state.level;
+    const targetLevel  = currentLevel + 1;
+    const missing      = [];
+
+    if (currentLevel >= cfg.maxLevel)
+      return { canResearch: false, missingRequirements: ['Already at maximum level.'] };
+    if (this._queue.includes(techId))
+      return { canResearch: false, missingRequirements: ['Already in research queue.'] };
+
+    // HQ unlock gate
+    if (!this._bm.getHQUnlockedIds('techs').has(cfg.id)) {
+      const reqLv = this._bm.getRequiredHQLevel('techs', cfg.id);
+      missing.push(reqLv ? `HQ Level ${reqLv} required` : 'Not yet unlockable.');
+    }
+
+    // Prerequisite tech gate
+    for (const reqId of (cfg.prereqTechs ?? [])) {
+      if ((this._state.get(reqId)?.level ?? 0) === 0) {
+        const reqCfg = TECH_CONFIG[reqId];
+        missing.push(`Research: ${reqCfg?.name ?? reqId}`);
+      }
+    }
+
+    // Building requirements (base + level-specific)
+    const merged = { ...(cfg.requires ?? {}), ...((cfg.levelRequirements ?? {})[targetLevel] ?? {}) };
+    for (const [bId, minLv] of Object.entries(merged)) {
+      if (this._bm.getLevelOf(bId) < minLv) {
+        const name = BUILDINGS_CONFIG[bId]?.name ?? bId;
+        missing.push(`${name} Lv.${minLv}`);
+      }
+    }
+
+    // Resource affordability
+    const cost = this._costForLevel(cfg, targetLevel);
+    if (!this._rm.canAfford(cost)) missing.push('Insufficient resources.');
+
+    // Queue slot availability
+    const maxSlots = this._getMaxQueueSlots();
+    if (this._queue.length >= maxSlots)
+      missing.push(`Research queue full (${this._queue.length}/${maxSlots}).`);
+
+    return { canResearch: missing.length === 0, missingRequirements: missing };
+  }
+
   /** @returns {boolean} true if the tech has at least Lv.1 completed */
   isResearched(techId) { return (this._state.get(techId)?.level ?? 0) > 0; }
 
@@ -381,12 +436,21 @@ export class TechnologyManager {
   /**
    * @private Check requirements for researching targetLevel.
    * Merges base `requires` with `levelRequirements[targetLevel]` override.
+   * Also enforces prereqTechs (must have ≥ Lv.1 of each prerequisite).
    */
   _checkRequirements(cfg, targetLevel) {
     // HQ unlock gate — tech must appear in HQ_UNLOCK_TABLE at or below current HQ level
     if (!this._bm.getHQUnlockedIds('techs').has(cfg.id)) {
       const reqLv = this._bm.getRequiredHQLevel('techs', cfg.id);
       return { met: false, reason: reqLv ? `Requires HQ Lv.${reqLv}` : 'Not yet unlockable.' };
+    }
+
+    // Prerequisite tech gate — each listed tech must have at least Lv.1 completed
+    for (const reqId of (cfg.prereqTechs ?? [])) {
+      if ((this._state.get(reqId)?.level ?? 0) === 0) {
+        const reqCfg = TECH_CONFIG[reqId];
+        return { met: false, reason: `Requires: ${reqCfg?.name ?? reqId} (not researched)` };
+      }
     }
 
     const merged = { ...(cfg.requires ?? {}), ...((cfg.levelRequirements ?? {})[targetLevel] ?? {}) };

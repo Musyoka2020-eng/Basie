@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="css/components/heroes.css" />
   <link rel="stylesheet" href="css/components/tutorial.css" />
   <link rel="stylesheet" href="css/components/events.css" />
+  <link rel="stylesheet" href="css/components/research.css" />
 </head>
 <body>
 
@@ -197,16 +198,13 @@
       <nav class="game-sidebar" id="game-sidebar" aria-label="Game Navigation">
         <ul class="nav-list">
           <li><button class="nav-btn active" data-view="base"     id="nav-base"     aria-label="Base">🏰 <span>Base</span></button></li>
-          <li><button class="nav-btn"         data-view="barracks" id="nav-barracks" aria-label="Barracks">⚔️ <span>Barracks</span></button></li>
-          <li><button class="nav-btn"         data-view="military" id="nav-military" aria-label="Military">🗡️ <span>Military</span></button></li>
+          <li><button class="nav-btn"         data-view="military" id="nav-military" aria-label="Military">⚔️ <span>Military</span></button></li>
           <li><button class="nav-btn"         data-view="heroes"   id="nav-heroes"   aria-label="Heroes">🦸 <span>Heroes</span></button></li>
           <li><button class="nav-btn"         data-view="combat"   id="nav-combat"   aria-label="Combat">🔥 <span>Combat</span></button></li>
           <li><button class="nav-btn"         data-view="research" id="nav-research" aria-label="Research">🔬 <span>Research</span></button></li>
           <li><button class="nav-btn"         data-view="quests"   id="nav-quests"   aria-label="Quests">📜 <span>Quests</span></button></li>
-          <li><button class="nav-btn"         data-view="market"   id="nav-market"   aria-label="Market">🏪 <span>Market</span></button></li>
-          <li><button class="nav-btn"         data-view="shop"       id="nav-shop"       aria-label="Shop">🛝 <span>Shop</span></button></li>
-          <li><button class="nav-btn"         data-view="challenges" id="nav-challenges" aria-label="Challenges">🏆 <span>Challenges</span><span class="badge hidden" id="challenges-badge">0</span></button></li>
-          <li><button class="nav-btn"         data-view="events"     id="nav-events"     aria-label="Events">🎉 <span>Events</span><span class="badge hidden" id="events-badge">!</span></button></li>
+          <li><button class="nav-btn"         data-view="economy"  id="nav-economy"  aria-label="Economy">🏪 <span>Economy</span></button></li>
+          <li><button class="nav-btn"         data-view="events"   id="nav-events"   aria-label="Events">🎉 <span>Events</span><span class="badge hidden" id="events-badge">!</span></button></li>
         </ul>
       </nav>
 
@@ -223,73 +221,83 @@
           <div class="buildings-grid" id="buildings-grid"></div>
         </section>
 
-        <!-- BARRACKS VIEW -->
-        <section class="view hidden" id="view-barracks">
-          <div class="view-header">
-            <h2>⚔️ Barracks</h2>
-            <p class="view-subtitle">Manage your squads and assign heroes</p>
-          </div>
-          <div class="barracks-layout">
-            <!-- Training Queue (visible only when active) -->
-            <div class="barracks-section" style="display:none">
-              <div class="barracks-section-header">
-                <h3><span class="section-icon">⏱️</span> Training Queue</h3>
-              </div>
-              <div class="training-queue-container">
-                <div class="training-queue-list" id="training-queue-list"></div>
-              </div>
-            </div>
-
-            <!-- Squads -->
-            <div class="squads-layout">
-              <!-- Left: Squad List -->
-              <div class="squads-sidebar">
-                <div class="squads-header">
-                  <h4>Squads</h4>
-                  <span id="squad-cap-display" class="squad-cap-label"></span>
-                  <button class="btn btn-sm btn-primary" id="btn-create-squad">+ New</button>
-                </div>
-                <div class="squads-list" id="squads-list"></div>
-                <div class="barracks-squad-slots" id="barracks-squad-slots"></div>
-              </div>
-
-              <!-- Right: Squad Management Panel -->
-              <div class="squad-management-panel" id="squad-management-panel">
-                <div class="squad-panel-placeholder">Select a squad to manage</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- MILITARY VIEW -->
+        <!-- MILITARY GROUP VIEW (sub-tabs: Barracks | Training) -->
         <section class="view hidden" id="view-military">
-          <div class="view-header">
-            <h2>🗡️ Military</h2>
-            <p class="view-subtitle">Train units at your military buildings</p>
+          <!-- Sub-tab navigation -->
+          <div class="sub-tab-bar" data-group="military">
+            <button class="sub-tab-btn" data-sub-view="barracks" data-group="military">⚔️ Barracks</button>
+            <button class="sub-tab-btn" data-sub-view="training" data-group="military">🗡️ Training</button>
           </div>
-          <div class="military-layout">
-            <!-- Training Queue: 4 building slots (pinned top, hidden when empty) -->
-            <div class="military-queue-section" style="display:none" id="military-queue-section">
-              <div class="military-queue-header">
-                <span class="section-icon">⏱️</span>
-                <h3>Training Queues</h3>
+          <!-- Locked-state card (shown when a locked sub-tab is clicked) -->
+          <div class="sub-view-locked hidden" id="sub-locked-military">
+            <div class="locked-state-card">
+              <div class="locked-state-icon">🔒</div>
+              <h3 class="locked-title">Locked</h3>
+              <p class="locked-reason"></p>
+            </div>
+          </div>
+          <!-- Sub-view: Barracks -->
+          <div class="sub-view hidden" id="sub-view-barracks">
+            <div class="view-header">
+              <h2>⚔️ Barracks</h2>
+              <p class="view-subtitle">Manage your squads and assign heroes</p>
+            </div>
+            <div class="barracks-layout">
+              <!-- Training Queue (visible only when active) -->
+              <div class="barracks-section" style="display:none">
+                <div class="barracks-section-header">
+                  <h3><span class="section-icon">⏱️</span> Training Queue</h3>
+                </div>
+                <div class="training-queue-container">
+                  <div class="training-queue-list" id="training-queue-list"></div>
+                </div>
               </div>
-              <div class="military-queue-grid" id="military-queue-grid"></div>
+              <!-- Squads -->
+              <div class="squads-layout">
+                <!-- Left: Squad List -->
+                <div class="squads-sidebar">
+                  <div class="squads-header">
+                    <h4>Squads</h4>
+                    <span id="squad-cap-display" class="squad-cap-label"></span>
+                    <button class="btn btn-sm btn-primary" id="btn-create-squad">+ New</button>
+                  </div>
+                  <div class="squads-list" id="squads-list"></div>
+                  <div class="barracks-squad-slots" id="barracks-squad-slots"></div>
+                </div>
+                <!-- Right: Squad Management Panel -->
+                <div class="squad-management-panel" id="squad-management-panel">
+                  <div class="squad-panel-placeholder">Select a squad to manage</div>
+                </div>
+              </div>
             </div>
-
-            <!-- Building Picker Tabs -->
-            <div class="military-building-tabs">
-              <button class="military-building-tab active" data-building="infantryhall">🗡️ Infantry Hall</button>
-              <button class="military-building-tab" data-building="archeryrange">🏹 Archery Range</button>
-              <button class="military-building-tab" data-building="cavalrystable">🐴 Cavalry Stable</button>
-              <button class="military-building-tab" data-building="siegeworkshop">💥 Siege Workshop</button>
+          </div>
+          <!-- Sub-view: Training -->
+          <div class="sub-view hidden" id="sub-view-training">
+            <div class="view-header">
+              <h2>🗡️ Training</h2>
+              <p class="view-subtitle">Train units at your military buildings</p>
             </div>
-
-            <!-- Building Status Banner -->
-            <div id="military-building-status" class="military-building-status"></div>
-
-            <!-- Unit Training Cards -->
-            <div class="buildings-grid" id="military-units-grid"></div>
+            <div class="military-layout">
+              <!-- Training Queue: 4 building slots (pinned top, hidden when empty) -->
+              <div class="military-queue-section" style="display:none" id="military-queue-section">
+                <div class="military-queue-header">
+                  <span class="section-icon">⏱️</span>
+                  <h3>Training Queues</h3>
+                </div>
+                <div class="military-queue-grid" id="military-queue-grid"></div>
+              </div>
+              <!-- Building Picker Tabs -->
+              <div class="military-building-tabs">
+                <button class="military-building-tab active" data-building="infantryhall">🗡️ Infantry Hall</button>
+                <button class="military-building-tab" data-building="archeryrange">🏹 Archery Range</button>
+                <button class="military-building-tab" data-building="cavalrystable">🐴 Cavalry Stable</button>
+                <button class="military-building-tab" data-building="siegeworkshop">💥 Siege Workshop</button>
+              </div>
+              <!-- Building Status Banner -->
+              <div id="military-building-status" class="military-building-status"></div>
+              <!-- Unit Training Cards -->
+              <div class="buildings-grid" id="military-units-grid"></div>
+            </div>
           </div>
         </section>
 
@@ -329,39 +337,70 @@
           <div id="tech-tree" style="display:flex; flex-direction:column; gap:1rem;"></div>
         </section>
 
-        <!-- QUESTS VIEW -->
+        <!-- QUESTS GROUP VIEW (sub-tabs: Quests | Challenges) -->
         <section class="view hidden" id="view-quests">
-          <div class="view-header">
-            <h2>📜 Quests</h2>
-            <p class="view-subtitle">Complete objectives to earn rewards</p>
+          <!-- Sub-tab navigation -->
+          <div class="sub-tab-bar" data-group="quests">
+            <button class="sub-tab-btn" data-sub-view="quests" data-group="quests">📜 Quests</button>
+            <button class="sub-tab-btn" data-sub-view="challenges" data-group="quests">🏆 Challenges<span class="badge hidden" id="challenges-badge">0</span></button>
           </div>
-          <div class="quests-list" id="quests-list"></div>
+          <!-- Locked-state card -->
+          <div class="sub-view-locked hidden" id="sub-locked-quests">
+            <div class="locked-state-card">
+              <div class="locked-state-icon">🔒</div>
+              <h3 class="locked-title">Locked</h3>
+              <p class="locked-reason"></p>
+            </div>
+          </div>
+          <!-- Sub-view: Quests content -->
+          <div class="sub-view hidden" id="sub-view-quests">
+            <div class="view-header">
+              <h2>📜 Quests</h2>
+              <p class="view-subtitle">Complete objectives to earn rewards</p>
+            </div>
+            <div class="quests-list" id="quests-list"></div>
+          </div>
+          <!-- Sub-view: Challenges content -->
+          <div class="sub-view hidden" id="sub-view-challenges">
+            <div class="view-header">
+              <h2>🏆 Challenges</h2>
+              <p class="view-subtitle">Complete daily and weekly objectives to earn rewards</p>
+            </div>
+            <div id="challenges-list"></div>
+          </div>
         </section>
 
-        <!-- MARKET VIEW -->
-        <section class="view hidden" id="view-market">
-          <div class="view-header">
-            <h2>🏪 Market</h2>
-            <p class="view-subtitle">Trade resources at market rates — prices rise with repeated purchases</p>
+        <!-- ECONOMY GROUP VIEW (sub-tabs: Market | Shop) -->
+        <section class="view hidden" id="view-economy">
+          <!-- Sub-tab navigation -->
+          <div class="sub-tab-bar" data-group="economy">
+            <button class="sub-tab-btn" data-sub-view="market" data-group="economy">🏪 Market</button>
+            <button class="sub-tab-btn" data-sub-view="shop"   data-group="economy">🛒 Shop</button>
           </div>
-          <div class="buildings-grid" id="market-grid"></div>
-        </section>
-
-        <!-- SHOP VIEW (Stub) -->
-        <section class="view hidden" id="view-shop">
-          <div class="view-header">
-            <h2>🛒 Shop</h2>
-            <p class="view-subtitle">Purchase hero cards, XP bundles, and premium items</p>
+          <!-- Locked-state card -->
+          <div class="sub-view-locked hidden" id="sub-locked-economy">
+            <div class="locked-state-card">
+              <div class="locked-state-icon">🔒</div>
+              <h3 class="locked-title">Locked</h3>
+              <p class="locked-reason"></p>
+            </div>
           </div>
-          <div id="shop-container" class="shop-container"></div>
-        </section>
-        <!-- CHALLENGES VIEW -->
-        <section class="view hidden" id="view-challenges">
-          <div class="view-header">
-            <h2>🏆 Challenges</h2>
-            <p class="view-subtitle">Complete daily and weekly objectives to earn rewards</p>
+          <!-- Sub-view: Market content -->
+          <div class="sub-view hidden" id="sub-view-market">
+            <div class="view-header">
+              <h2>🏪 Market</h2>
+              <p class="view-subtitle">Trade resources at market rates — prices rise with repeated purchases</p>
+            </div>
+            <div class="buildings-grid" id="market-grid"></div>
           </div>
-          <div id="challenges-list"></div>
+          <!-- Sub-view: Shop content -->
+          <div class="sub-view hidden" id="sub-view-shop">
+            <div class="view-header">
+              <h2>🛒 Shop</h2>
+              <p class="view-subtitle">Purchase hero cards, XP bundles, and premium items</p>
+            </div>
+            <div id="shop-container" class="shop-container"></div>
+          </div>
         </section>
 
         <!-- EVENTS VIEW -->

@@ -38,6 +38,7 @@
 .nav-btn::before {
   content: '';
   position: absolute;
+  z-index: 0; /* keep below badge dot */
   inset: 0;
   background: linear-gradient(90deg, var(--clr-primary-muted), transparent);
   opacity: 0;
@@ -73,3 +74,226 @@
   margin-left: auto;
   z-index: 1;
 }
+
+/* =============================================
+ * LOCKED NAV BUTTON
+ * ============================================= */
+.nav-btn.nav-tab--locked {
+  opacity: 0.45;
+  filter: grayscale(0.65);
+  cursor: not-allowed;
+  pointer-events: all; /* keep clickable so we can show the tooltip */
+}
+
+/* Lock icon appended after the button label */
+.nav-btn.nav-tab--locked::after {
+  content: '🔒';
+  font-size: 0.7em;
+  margin-left: auto;
+  opacity: 0.8;
+  position: relative;
+  z-index: 1;
+}
+
+/* =============================================
+ * SUB-TAB BAR (inside group views)
+ * ============================================= */
+.sub-tab-bar {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+  border-bottom: 1px solid var(--clr-border);
+  background: var(--clr-bg-surface);
+  flex-shrink: 0;
+}
+
+.sub-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--clr-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative; /* required for badge dot/chip absolute positioning */
+}
+
+.sub-tab-btn:hover {
+  color: var(--clr-text-primary);
+  background: var(--clr-bg-elevated);
+}
+
+.sub-tab-btn.active {
+  color: var(--clr-text-primary);
+  background: var(--clr-bg-elevated);
+  border-color: var(--clr-border);
+  border-bottom-color: var(--clr-bg-elevated);
+  margin-bottom: -1px;
+}
+
+/* Locked sub-tab: still clickable, shows lock icon, slightly faded */
+.sub-tab-btn.sub-tab-btn--locked {
+  opacity: 0.5;
+  filter: grayscale(0.5);
+}
+
+.sub-tab-btn.sub-tab-btn--locked::after {
+  content: ' 🔒';
+  font-size: 0.75em;
+}
+
+/* =============================================
+ * SUB-VIEWS (content panes inside group views)
+ * ============================================= */
+/* Sub-views are plain block containers; show/hide is handled via .hidden class */
+.sub-view {
+  display: block;
+}
+
+/* =============================================
+ * LOCKED STATE CARD (shown inside sub-view area)
+ * ============================================= */
+.sub-view-locked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  min-height: 300px;
+}
+
+.locked-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-10);
+  background: var(--clr-bg-elevated);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  max-width: 480px;
+  text-align: center;
+}
+
+.locked-state-icon {
+  font-size: 3rem;
+  line-height: 1;
+  filter: grayscale(0.4);
+}
+
+.locked-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--clr-text-primary);
+  margin: 0;
+}
+
+.locked-reason {
+  font-size: var(--text-sm);
+  color: var(--clr-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* =============================================
+ * LOCKED-TAB TOOLTIP (parent nav level)
+ * ============================================= */
+.tab-unlock-tooltip {
+  position: absolute;
+  z-index: 9000;
+  background: var(--clr-bg-surface, #1e1e2e);
+  color: var(--clr-text-primary, #cdd6f4);
+  border: 1px solid var(--clr-border, #45475a);
+  border-radius: var(--radius-md, 6px);
+  padding: var(--space-2, 0.4rem) var(--space-3, 0.75rem);
+  font-size: var(--text-sm, 0.825rem);
+  max-width: 260px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  pointer-events: none;
+  transform: translateY(-50%);
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+.tab-unlock-tooltip--fade {
+  opacity: 0;
+}
+
+/* =============================================
+ * ACTIVITY BADGES (dot + chip on nav tabs)
+ * ============================================= */
+
+/* Parent wrapper needs relative positioning */
+.tab-has-badge {
+  position: relative;
+  overflow: visible; /* allow the chip to extend outside the button */
+}
+
+/* Pulsing amber dot — default: top-right corner (for sub-tab buttons) */
+.tab-attention-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--clr-warning, #f9a825);
+  box-shadow: 0 0 0 0 rgba(249, 168, 37, 0.7);
+  animation: badge-pulse 1.8s infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* For full-width sidebar nav buttons: break out of absolute, flow as flex item on the right */
+.nav-btn .tab-attention-dot {
+  position: relative;
+  top: auto;
+  right: auto;
+  transform: none;
+  margin-left: auto;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+@keyframes badge-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(249, 168, 37, 0.7); }
+  60%  { box-shadow: 0 0 0 6px rgba(249, 168, 37, 0);   }
+  100% { box-shadow: 0 0 0 0   rgba(249, 168, 37, 0);   }
+}
+
+/* Info chip — appears to the right of the button, shows latest message */
+.tab-attention-chip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  background: var(--clr-bg-elevated, #313244);
+  color: var(--clr-text-primary, #cdd6f4);
+  border: 1px solid var(--clr-warning, #f9a825);
+  border-radius: var(--radius-md, 6px);
+  padding: 2px var(--space-2, 0.4rem);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Show chip on hover of the badged button */
+.tab-has-badge:hover .tab-attention-chip {
+  opacity: 1;
+}
+

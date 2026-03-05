@@ -63,7 +63,7 @@ export const QUESTS_CONFIG = {
     description: 'Reach Commander Level 5.',
     briefing: 'Prestige is earned through growth. Rise to Level 5 and the realm will take notice of your growing dominion.',
     icon: '👑',
-    objectives: [{ type: 'reach_level', target: 5, count: 5 }],
+    objectives: [{ type: 'reach_level', target: 5 }],
     rewards: { money: 3000, xp: 500 }, category: 'progression',
     prerequisiteQuest: 'first_victory',
   },

@@ -34,17 +34,20 @@ import { MilitaryUI }   from './controllers/MilitaryUI.js';
 import { ChallengesUI } from './controllers/ChallengesUI.js';
 import { EventsUI }     from './controllers/EventsUI.js';
 import { RES_META, openModal, closeModal } from './uiUtils.js';
+import { INVENTORY_ITEMS } from '../entities/GAME_DATA.js';
 import { eventBus }     from '../core/EventBus.js';
 
 export class UIManager {
   constructor(systems) {
     this.name      = 'UIManager';
-    this._rm       = systems.rm;
-    this._inv      = systems.inventory ?? null;
-    this._mailMgr  = systems.mail     ?? null;
-    this._story    = systems.story    ?? null;
-    this._tutorial = systems.tutorial ?? null;
-    this._sound    = systems.sound    ?? null;
+    this._rm            = systems.rm;
+    this._inv           = systems.inventory    ?? null;
+    this._user          = systems.user         ?? null;
+    this._mailMgr       = systems.mail         ?? null;
+    this._story         = systems.story        ?? null;
+    this._tutorial      = systems.tutorial     ?? null;
+    this._sound         = systems.sound        ?? null;
+    this._notifications = systems.notifications ?? null;
 
     // Instantiate each controller with only its required systems
     this._navigation = new NavigationUI({
@@ -251,6 +254,13 @@ export class UIManager {
     this._research.render();
     this._quests.render();
     this._market.render();
+
+    // ── Group 8: Notification hover-pause ───────────────────────────────────────
+    const notifEl = document.getElementById('notification-container');
+    if (notifEl && this._notifications) {
+      notifEl.addEventListener('mouseenter', () => this._notifications.startHoverPause());
+      notifEl.addEventListener('mouseleave', () => this._notifications.endHoverPause());
+    }
   }
 
   /** No-op — UIManager is event-driven. Kept for GameEngine compatibility. */
@@ -305,12 +315,11 @@ export class UIManager {
     const baseX    = baseRect ? baseRect.left + baseRect.width / 2 - 40 : window.innerWidth - 90;
     const baseY    = baseRect ? baseRect.bottom + 8 : 64;
 
-    itemsArray.forEach((item, i) => {
-      const icon  = item.type === 'resource'
-        ? (RES_META[item.itemId]?.icon ?? '✨')
-        : '📦';
-      const label = `${icon} ×${item.quantity}`;
+    // P9: cap displayed cards at 5 — show 4 real items then a "+N more" summary card
+    const overflow    = itemsArray.length > 5 ? itemsArray.length - 4 : 0;
+    const displayList = overflow ? itemsArray.slice(0, 4) : itemsArray;
 
+    const spawnCard = (label, i) => {
       const card = document.createElement('div');
       card.className   = 'reward-float-card';
       card.textContent = label;
@@ -319,7 +328,28 @@ export class UIManager {
       card.style.top   = `${baseY + i * 38}px`;
       document.body.appendChild(card);
       card.addEventListener('animationend', () => card.remove(), { once: true });
+      // P7: safety fallback in case animationend never fires
+      setTimeout(() => card.remove(), 2000);
+    };
+
+    displayList.forEach((item, i) => {
+      let label;
+      if (item.type === 'resource') {
+        const icon = RES_META[item.itemId]?.icon ?? '✨';
+        label = `${icon} ×${item.quantity}`;
+      } else {
+        // P8: use the item's own icon and name instead of a generic 📦
+        const cfg  = INVENTORY_ITEMS[item.itemId];
+        const icon = cfg?.icon ?? '📦';
+        const name = cfg?.name ?? item.itemId;
+        label = `${icon} ${name} ×${item.quantity}`;
+      }
+      spawnCard(label, i);
     });
+
+    if (overflow) {
+      spawnCard(`+${overflow} more`, displayList.length);
+    }
   }
 
   /** Spawn a "+LEVEL UP!" float near the player-level element in the header. */
@@ -394,7 +424,11 @@ export class UIManager {
       </div>`);
 
     // Deliver rewards via InventoryManager and close
-    document.getElementById('btn-login-claim')?.addEventListener('click', () => {
+    let _loginClaimed = false;
+    document.getElementById('btn-login-claim')?.addEventListener('click', (e) => {
+      if (_loginClaimed) return;
+      _loginClaimed = true;
+      e.currentTarget.disabled = true;
       this._inv?.grantRewards(rewards);
 
       // Confirmation mail — summarises what was granted and current streak
@@ -488,11 +522,15 @@ export class UIManager {
         renderLine();
       } else {
         // Grant rewards via tiered bundles and close.
-        if (this._inv && chapter.rewards) {
-          const rewardArray = Object.entries(chapter.rewards)
-            .filter(([, v]) => v > 0)
-            .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
-          if (rewardArray.length) this._inv.grantRewards(rewardArray);
+        if (chapter.rewards) {
+          // XP granted directly to the player — not via inventory resource bundles
+          if (chapter.rewards.xp) this._user?.addXP(chapter.rewards.xp);
+          if (this._inv) {
+            const rewardArray = Object.entries(chapter.rewards)
+              .filter(([k, v]) => k !== 'xp' && v > 0)
+              .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+            if (rewardArray.length) this._inv.grantRewards(rewardArray);
+          }
         }
         overlay.classList.add('hidden');
         if (rewardHtml) {
@@ -509,13 +547,23 @@ export class UIManager {
     });
     panel.querySelector('#story-btn-skip')?.addEventListener('click', () => {
       eventBus.emit('ui:click');
-      if (this._inv && chapter.rewards) {
-        const rewardArray = Object.entries(chapter.rewards)
-          .filter(([, v]) => v > 0)
-          .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
-        if (rewardArray.length) this._inv.grantRewards(rewardArray);
+      if (chapter.rewards) {
+        // XP granted directly to the player — not via inventory resource bundles
+        if (chapter.rewards.xp) this._user?.addXP(chapter.rewards.xp);
+        if (this._inv) {
+          const rewardArray = Object.entries(chapter.rewards)
+            .filter(([k, v]) => k !== 'xp' && v > 0)
+            .map(([k, v]) => ({ type: 'resource', itemId: k, quantity: v }));
+          if (rewardArray.length) this._inv.grantRewards(rewardArray);
+        }
       }
       overlay.classList.add('hidden');
+      // P10: emit the same reward notification that the normal finish path emits
+      if (rewardHtml) {
+        eventBus.emit('ui:notification', {
+          type: 'success', title: `📜 Chapter Complete: ${chapter.title}`, body: rewardHtml
+        });
+      }
     });
   }
 

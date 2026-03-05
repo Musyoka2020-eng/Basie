@@ -16,7 +16,7 @@ const MILITARY_BUILDINGS = [
   { id: 'infantryhall',  label: 'Infantry Hall',  icon: '🗡️' },
   { id: 'archeryrange',  label: 'Archery Range',  icon: '🏹' },
   { id: 'cavalrystable', label: 'Cavalry Stable', icon: '🐴' },
-  { id: 'siegeworkshop', label: 'Siege Workshop', icon: '💥' },
+  { id: 'siegeworkshop', label: 'Siege Workshop', icon: '�' },
 ];
 
 export class MilitaryUI {
@@ -31,11 +31,23 @@ export class MilitaryUI {
   init() {
     this._bindBuildingTabs();
     eventBus.on('ui:viewChanged',    v => { if (v === 'military') this.render(); });
-    eventBus.on('unit:trained',      () => this.render());
     eventBus.on('unit:queueUpdated', q  => this._renderTrainingQueue(q));
     eventBus.on('army:updated',      () => this._renderReserveUnits(this._activeBuildingId));
     eventBus.on('building:completed',() => this.render());
     eventBus.on('tech:researched',   () => this.render());
+    eventBus.on('resource:updated',  () => this._refreshCostChips());
+  }
+
+  // Refresh affordable/unaffordable chip classes whenever resources change,
+  // without triggering a full DOM rebuild. Chips must carry data-res and data-amt.
+  _refreshCostChips() {
+    const snap = this._s.rm.getSnapshot();
+    document.querySelectorAll('.cost-chip[data-res]').forEach(chip => {
+      const res = chip.dataset.res;
+      const amt = Number(chip.dataset.amt);
+      chip.classList.toggle('affordable',   (snap[res]?.amount ?? 0) >= amt);
+      chip.classList.toggle('unaffordable', (snap[res]?.amount ?? 0) <  amt);
+    });
   }
 
   render() {
@@ -78,6 +90,10 @@ export class MilitaryUI {
       const curSlots   = slotData?.concurrentSlots ?? 1;
       const curBatch   = slotData?.maxBatchSize ?? '∞';
       const curTier    = slotData?.maxTrainableTier ?? '?';
+      // P4: show a speed badge when the current level has a trainTimeMultiplier reduction
+      const curSpeedPct = (slotData?.trainTimeMultiplier != null && slotData.trainTimeMultiplier < 1)
+        ? Math.round((1 - slotData.trainTimeMultiplier) * 100)
+        : 0;
       const nextSlots  = nextData?.concurrentSlots ?? null;
       const nextBatch  = nextData?.maxBatchSize ?? null;
       const nextTier   = nextData?.maxTrainableTier ?? null;
@@ -98,6 +114,7 @@ export class MilitaryUI {
         <span class="building-name-label">${cfg.name}</span>
         <span class="building-level-badge">Lv.${level}</span>
         <span class="bld-slot-badge" title="Concurrent slots · max batch · max tier">⚙️ ${queueDepth}/${curSlots} slot${curSlots !== 1 ? 's' : ''} · ${curBatch}/batch · max T${curTier}</span>
+        ${curSpeedPct > 0 ? `<span class="bld-speed-badge">⚡ -${curSpeedPct}% time</span>` : ''}
         ${nextInfo}
       </div>`;
     }
@@ -214,13 +231,13 @@ export class MilitaryUI {
           const upgradeTimeSec = canUpgrade ? (tierCfg.upgradeTime ?? Math.ceil((tierCfg.trainTime ?? 10) * 0.35)) : 0;
 
           const costHtml = Object.entries(tierCfg.cost ?? {}).map(([res, amt]) =>
-            `<span class="cost-chip ${(snap[res]?.amount ?? 0) >= amt ? 'affordable' : 'unaffordable'}">${RES_META[res]?.icon ?? '?'} ${fmt(amt)}</span>`
+            `<span class="cost-chip ${(snap[res]?.amount ?? 0) >= amt ? 'affordable' : 'unaffordable'}" data-res="${res}" data-amt="${amt}">${RES_META[res]?.icon ?? '?'} ${fmt(amt)}</span>`
           ).join('');
 
           const upgradeMaxAmt  = canUpgrade ? Math.min(prevCount, maxUpgradable, isFinite(maxBatchSz) ? maxBatchSz : Infinity) : 0;
           const upgCostHtml    = canUpgrade && upgradeCost
             ? Object.entries(upgradeCost).map(([res, amt]) =>
-                `<span class="cost-chip ${(snap[res]?.amount ?? 0) >= amt ? 'affordable' : 'unaffordable'}">${RES_META[res]?.icon ?? '?'} ${fmt(amt)}</span>`
+                `<span class="cost-chip ${(snap[res]?.amount ?? 0) >= amt ? 'affordable' : 'unaffordable'}" data-res="${res}" data-amt="${amt}">${RES_META[res]?.icon ?? '?'} ${fmt(amt)}</span>`
               ).join('')
             : '';
 
@@ -422,7 +439,7 @@ export class MilitaryUI {
     MILITARY_BUILDINGS.forEach(bld => {
       const items   = byBuilding[bld.id];
       const level   = this._s.bm.getLevelOf(bld.id);
-      // Sort: active (queueIndex 0) first across all units in this building
+      // One linear queue per building — item[0] is the single active slot
       const active  = items.find(q => q.queueIndex === 0);
       const pending = items.filter(q => q.queueIndex > 0)
                            .sort((a, b) => a.queueIndex - b.queueIndex);
@@ -475,7 +492,7 @@ export class MilitaryUI {
         });
         activeEl.querySelector('.mq-btn-cancel').addEventListener('click', () => {
           eventBus.emit('ui:click');
-          this._s.um.cancelTrain(active.tierKey ?? active.unitId, 0);
+          this._s.um.cancelTrain(active.buildingId, 0);
         });
         slot.appendChild(activeEl);
       }
@@ -493,7 +510,7 @@ export class MilitaryUI {
             <button class="mq-pend-cancel" title="Cancel">×</button>`;
           row.querySelector('.mq-pend-cancel').addEventListener('click', () => {
             eventBus.emit('ui:click');
-            this._s.um.cancelTrain(q.tierKey ?? q.unitId, q.queueIndex);
+            this._s.um.cancelTrain(q.buildingId, q.queueIndex);
           });
           pendList.appendChild(row);
         });

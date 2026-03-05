@@ -6,7 +6,9 @@
 
 import { GameEngine }          from './core/GameEngine.js';
 import { SaveManager }         from './core/SaveManager.js';
+import { LogManager }          from './core/LogManager.js';
 import { eventBus }            from './core/EventBus.js';
+import { DEBUG_CONFIG }        from './entities/GAME_DATA.js';
 
 import { ResourceManager }     from './systems/ResourceManager.js';
 import { BuildingManager }     from './systems/BuildingManager.js';
@@ -35,7 +37,16 @@ import { FirebaseDataManager, IS_CONFIGURED } from './core/FirebaseDataManager.j
 // =============================================
 // INSTANTIATE SYSTEMS
 // =============================================
-const engine              = new GameEngine();
+// LogManager must come first — it is available from the very first tick.
+const logManager          = new LogManager({ logPersist: DEBUG_CONFIG.logPersist });
+
+// Global error hooks — route unhandled errors into the in-game log
+window.onerror = (msg, src, line) =>
+  logManager.log('window', `${msg} at ${src}:${line}`, 'error');
+window.addEventListener('unhandledrejection', e =>
+  logManager.log('promise', e.reason?.message ?? String(e.reason), 'error'));
+
+const engine              = new GameEngine(logManager);
 const saveManager         = new SaveManager();
 const firebaseDataManager = new FirebaseDataManager(saveManager);
 
@@ -65,10 +76,18 @@ const achievementManager  = new AchievementManager(userManager, mailManager, res
 const challengeManager    = new ChallengeManager(resourceManager, mailManager, inventoryManager);
 const storyManager = new StoryManager();
 const tutorialManager = new TutorialManager(userManager);
-const eventManager = new EventManager(resourceManager, mailManager, inventoryManager);
+const eventManager = new EventManager(resourceManager, mailManager, inventoryManager, userManager);
 
 // Wire InventoryManager into MailManager so mail attachment claims go to inventory
 mailManager.setInventoryManager(inventoryManager);
+
+// ── Event logging hooks — key game events sent to LogManager ───────────────
+eventBus.on('building:completed', d => logManager.log('building', `${d?.id ?? '?'} construction complete`, 'info'));
+eventBus.on('unit:trained',       d => logManager.log('unit',     `${d?.count ?? '?'}x trained`, 'info'));
+eventBus.on('combat:victory',     () => logManager.log('combat',  'victory', 'info'));
+eventBus.on('combat:defeat',      () => logManager.log('combat',  'defeat',  'warn'));
+eventBus.on('tech:researched',    d => logManager.log('tech',     `${d?.name} Lv.${d?.level}`, 'info'));
+eventBus.on('quest:completed',    d => logManager.log('quest',    `"${d?.name}" completed`, 'info'));
 
 let soundManager;
 let notificationManager;

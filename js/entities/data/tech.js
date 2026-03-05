@@ -11,6 +11,7 @@ export const TECH_CONFIG = {
     effects: { ironBonus: 0.25 }, requires: { workshop: 1 }, tier: 1,
     maxLevel: 3, levelCostMultiplier: 1.6, levelTimeMultiplier: 1.5,
     levelRequirements: { 2: { workshop: 2 }, 3: { workshop: 4 } },
+    prereqTechs: [],
   },
   reinforced_lumber: {
     id: 'reinforced_lumber', name: 'Reinforced Lumber', icon: '🪵',
@@ -19,6 +20,7 @@ export const TECH_CONFIG = {
     effects: { woodBonus: 0.25 }, requires: { workshop: 1 }, tier: 1,
     maxLevel: 3, levelCostMultiplier: 1.6, levelTimeMultiplier: 1.5,
     levelRequirements: { 2: { workshop: 2 }, 3: { workshop: 3 } },
+    prereqTechs: [],
   },
   steel_armor: {
     id: 'steel_armor', name: 'Steel Armor', icon: '🛡️',
@@ -27,6 +29,7 @@ export const TECH_CONFIG = {
     effects: { defenseBonus: 25, lossReduction: 0.15 }, requires: { workshop: 3 }, tier: 2,
     maxLevel: 4, levelCostMultiplier: 1.6, levelTimeMultiplier: 1.5,
     levelRequirements: { 3: { workshop: 4 }, 4: { workshop: 5 } },
+    prereqTechs: ['improved_smelting'],
   },
   advanced_tactics: {
     id: 'advanced_tactics', name: 'Advanced Tactics', icon: '🎯',
@@ -41,6 +44,7 @@ export const TECH_CONFIG = {
       4: { workshop: 8 },
       5: { workshop: 8 },
     },
+    prereqTechs: ['battle_formations', 'steel_armor'],
   },
   battle_formations: {
     id: 'battle_formations', name: 'Battle Formations', icon: '⚔️',
@@ -49,6 +53,7 @@ export const TECH_CONFIG = {
     effects: { firstWaveBonus: 0.20 }, requires: { workshop: 2, barracks: 3 }, tier: 2,
     maxLevel: 4, levelCostMultiplier: 1.6, levelTimeMultiplier: 1.5,
     levelRequirements: { 3: { workshop: 3, barracks: 4 }, 4: { workshop: 4, barracks: 5 } },
+    prereqTechs: ['improved_smelting'],
   },
   rapid_construction: {
     id: 'rapid_construction', name: 'Rapid Construction', icon: '🏗️',
@@ -57,6 +62,7 @@ export const TECH_CONFIG = {
     effects: { buildTimeReduction: 0.15 }, requires: { workshop: 2 }, tier: 2,
     maxLevel: 4, levelCostMultiplier: 1.6, levelTimeMultiplier: 1.5,
     levelRequirements: { 3: { workshop: 3 }, 4: { workshop: 4 } },
+    prereqTechs: ['reinforced_lumber'],
   },
   infrastructure: {
     id: 'infrastructure', name: 'Infrastructure', icon: '🏘️',
@@ -70,6 +76,7 @@ export const TECH_CONFIG = {
       4: { workshop: 7, well: 5 },
       5: { workshop: 8, well: 6 },
     },
+    prereqTechs: ['rapid_construction'],
   },
   elite_training: {
     id: 'elite_training', name: 'Elite Training', icon: '🏆',
@@ -83,6 +90,7 @@ export const TECH_CONFIG = {
       4: { workshop: 8, barracks: 7 },
       5: { workshop: 8, barracks: 8 },
     },
+    prereqTechs: ['infantry_mastery'],
   },
   infantry_mastery: {
     id: 'infantry_mastery', name: 'Infantry Mastery', icon: '🗡️',
@@ -95,6 +103,7 @@ export const TECH_CONFIG = {
       4: { workshop: 6, infantryhall: 6 }, 5: { workshop: 6, infantryhall: 7 },
       6: { workshop: 7, infantryhall: 8 }, 7: { workshop: 8, infantryhall: 9 },
     },
+    prereqTechs: [],
   },
   ranged_mastery: {
     id: 'ranged_mastery', name: 'Ranged Mastery', icon: '🏹',
@@ -107,6 +116,7 @@ export const TECH_CONFIG = {
       4: { workshop: 6, archeryrange: 6 }, 5: { workshop: 6, archeryrange: 7 },
       6: { workshop: 7, archeryrange: 8 }, 7: { workshop: 8, archeryrange: 8 },
     },
+    prereqTechs: [],
   },
   cavalry_mastery: {
     id: 'cavalry_mastery', name: 'Cavalry Mastery', icon: '🐴',
@@ -119,6 +129,7 @@ export const TECH_CONFIG = {
       4: { workshop: 6, cavalrystable: 6 }, 5: { workshop: 7, cavalrystable: 7 },
       6: { workshop: 8, cavalrystable: 8 }, 7: { workshop: 8, cavalrystable: 9 },
     },
+    prereqTechs: ['battle_formations'],
   },
   siege_mastery: {
     id: 'siege_mastery', name: 'Siege Mastery', icon: '💣',
@@ -131,5 +142,6 @@ export const TECH_CONFIG = {
       4: { workshop: 6, siegeworkshop: 6 }, 5: { workshop: 7, siegeworkshop: 7 },
       6: { workshop: 8, siegeworkshop: 8 }, 7: { workshop: 8, siegeworkshop: 9 },
     },
+    prereqTechs: [],
   },
 };

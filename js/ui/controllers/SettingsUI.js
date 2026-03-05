@@ -75,6 +75,16 @@ export class SettingsUI {
           </div>
         </div>
         <div class="modal-section">
+          <div class="modal-section-title">Developer</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) 0">
+            <div>
+              <div style="font-size:var(--text-sm)">Log Viewer</div>
+              <div style="font-size:var(--text-xs);color:var(--clr-text-muted)">Shortcut: Ctrl+Shift+L</div>
+            </div>
+            <button class="btn btn-sm btn-ghost" id="btn-toggle-log">Open</button>
+          </div>
+        </div>
+        <div class="modal-section">
           <div class="modal-section-title" style="color:var(--clr-danger)">Danger Zone</div>
           <div id="wipe-initial">
             <button class="btn btn-danger w-full" id="btn-wipe-data">Wipe Save Data</button>
@@ -115,6 +125,11 @@ export class SettingsUI {
     document.getElementById('btn-wipe-data')?.addEventListener('click', () => {
       document.getElementById('wipe-initial').style.display  = 'none';
       document.getElementById('wipe-confirm').style.display = 'block';
+    });
+    document.getElementById('btn-toggle-log')?.addEventListener('click', () => {
+      eventBus.emit('ui:click');
+      closeModal();
+      eventBus.emit('debug:toggleLog');
     });
     document.getElementById('btn-wipe-cancel')?.addEventListener('click', () => {
       document.getElementById('wipe-initial').style.display  = 'block';

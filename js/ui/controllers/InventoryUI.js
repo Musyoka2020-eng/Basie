@@ -196,10 +196,27 @@ export class InventoryUI {
     this._bindListeners(panel);
   }
 
-  _buildActionHtml(item, ownedHeroIds, ownedHerosByTier) {
+  _buildActionHtml(item, ownedHeroIds) {
     // ── Recruitment Scrolls ──────────────────────────────────────────────
     if (item.type === 'recruitment_scroll') {
-      return `<button class="btn btn-xs btn-gold inv-use-scroll" data-item="${item.id}" data-tier="${item.tier}">🎲 Roll</button>`;
+      const can10  = item.quantity >= 10;
+      const can100 = item.quantity >= 100;
+      return `
+        <div class="inv-scroll-actions">
+          <button class="btn btn-xs btn-gold inv-use-scroll" data-item="${item.id}" data-tier="${item.tier}">🎲 Roll 1×</button>
+          <button class="btn btn-xs btn-secondary inv-bulk-scroll"
+            data-tier="${item.tier}" data-count="10"
+            ${can10 ? '' : 'disabled'}
+            title="${can10 ? 'Roll 10 scrolls at once' : `Need ${10 - item.quantity} more scrolls`}">
+            Roll 10× <span class="inv-scroll-cost">(10 scrolls)</span>
+          </button>
+          <button class="btn btn-xs btn-secondary inv-bulk-scroll"
+            data-tier="${item.tier}" data-count="100"
+            ${can100 ? '' : 'disabled'}
+            title="${can100 ? 'Roll 100 scrolls at once' : `Need ${100 - item.quantity} more scrolls`}">
+            Roll 100× <span class="inv-scroll-cost">(100 scrolls)</span>
+          </button>
+        </div>`;
     }
 
     // ── Specific Hero Cards ───────────────────────────────────────────────
@@ -286,6 +303,17 @@ export class InventoryUI {
         const tier = e.currentTarget.dataset.tier;
         this._close();
         eventBus.emit('ui:openGacha', { scrollTier: tier });
+      });
+    });
+
+    // ── Bulk Recruitment Scrolls → open GachaUI with count ───────────────
+    panel.querySelectorAll('.inv-bulk-scroll').forEach(btn => {
+      btn.addEventListener('click', e => {
+        eventBus.emit('ui:click');
+        const tier  = e.currentTarget.dataset.tier;
+        const count = parseInt(e.currentTarget.dataset.count, 10);
+        this._close();
+        eventBus.emit('ui:openGacha', { scrollTier: tier, count });
       });
     });
 

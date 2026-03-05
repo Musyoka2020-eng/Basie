@@ -240,21 +240,23 @@ export const BUILDINGS_CONFIG = {
   archeryrange: {
     id: 'archeryrange', name: 'Archery Range', icon: '🏹',
     description: 'Train ranged units with superior attack range.',
-    maxLevel: 8,
+    maxLevel: 10,
     baseCost: { wood: 200, stone: 100 },
     costMultiplier: 1.9, buildTime: 45,
     effects: {},
-    effectLabel: '🏹 Trains Ranged units · +5% training speed per level · Lv.3: 2 training slots · Lv.6: 3 slots',
+    effectLabel: '🏹 Trains Ranged units · +5% training speed per level · Lv.3: 2 training slots · Lv.6: 3 slots · Lv.9: 4 slots',
     category: 'military', requires: { barracks: 1 },
     trainingSlots: [
-      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 1, maxBatchSize:  25 }, // Lv.1
-      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 2, maxBatchSize:  50 }, // Lv.2
-      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 3, maxBatchSize:  75 }, // Lv.3
-      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 4, maxBatchSize: 100 }, // Lv.4
-      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 5, maxBatchSize: 125 }, // Lv.5
-      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 6, maxBatchSize: 150 }, // Lv.6
-      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 7, maxBatchSize: 175 }, // Lv.7
-      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 8, maxBatchSize: 200 }, // Lv.8
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 1,  maxBatchSize:  25 }, // Lv.1
+      { concurrentSlots: 1, trainTimeMultiplier: 1.00, maxTrainableTier: 2,  maxBatchSize:  50 }, // Lv.2
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 3,  maxBatchSize:  75 }, // Lv.3
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 4,  maxBatchSize: 100 }, // Lv.4
+      { concurrentSlots: 2, trainTimeMultiplier: 0.90, maxTrainableTier: 5,  maxBatchSize: 125 }, // Lv.5
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 6,  maxBatchSize: 150 }, // Lv.6
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 7,  maxBatchSize: 175 }, // Lv.7
+      { concurrentSlots: 3, trainTimeMultiplier: 0.80, maxTrainableTier: 8,  maxBatchSize: 200 }, // Lv.8
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier: 9,  maxBatchSize: 225 }, // Lv.9
+      { concurrentSlots: 4, trainTimeMultiplier: 0.70, maxTrainableTier: 10, maxBatchSize: 250 }, // Lv.10
     ],
     maxInstances: 1,
     instanceSlots: [{ index: 0, condition: null }],

@@ -138,7 +138,8 @@ export class ChallengeManager {
 
     entry.claimed = true;
 
-    if (this._inv) this._inv.grantRewards(cfg.reward);
+    if (!this._inv) throw new Error('ChallengeManager: InventoryManager not wired — cannot grant rewards.');
+    this._inv.grantRewards(cfg.reward);
 
     const rewardText = cfg.reward
       .map(r => r.type === 'resource' ? `+${r.quantity} ${r.itemId}` : r.itemId.replace(/_/g, ' '))
@@ -190,7 +191,8 @@ export class ChallengeManager {
     if (currentXp < milestone.xp) return { success: false, reason: 'Not yet unlocked.' };
 
     claimedSet.add(index);
-    if (this._inv) this._inv.grantRewards(milestone.rewards);
+    if (!this._inv) throw new Error('ChallengeManager: InventoryManager not wired — cannot grant milestone rewards.');
+    this._inv.grantRewards(milestone.rewards);
 
     eventBus.emit('challenges:passMilestone', { index, milestone, type });
     eventBus.emit('challenges:updated', this._getPublicState());

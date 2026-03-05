@@ -58,7 +58,9 @@ export class QuestManager {
           } else {
             state.progress = Math.min((state.progress ?? 0) + amount, obj.count);
           }
-          if (state.progress >= obj.count || (type === 'reach_level' && amount >= obj.target)) {
+          // reach_level uses obj.target; all other types use obj.count.
+          const threshold = type === 'reach_level' ? obj.target : obj.count;
+          if (state.progress >= threshold) {
             this._complete(id, cfg);
           }
         }
@@ -100,5 +102,7 @@ export class QuestManager {
     for (const [id, s] of Object.entries(data)) {
       if (this._state.has(id)) this._state.set(id, s);
     }
+    // P12: notify UI panels to refresh after a save load
+    eventBus.emit('quests:updated', { source: 'load' });
   }
 }

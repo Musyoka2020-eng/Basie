@@ -7,7 +7,11 @@
 import { eventBus } from './EventBus.js';
 
 export class GameEngine {
-  constructor() {
+  /**
+   * @param {{ log: (tag: string, msg: string, level?: string) => void }} [logManager]
+   */
+  constructor(logManager = null) {
+    this._log     = logManager; // LogManager instance (optional)
     this._systems = [];
     this._lastTimestamp = null;
     this._rafId = null;
@@ -71,7 +75,10 @@ export class GameEngine {
       const dt = this.TICK_RATE_MS / 1000;
       this._systems.forEach(sys => {
         try { sys.update(dt); }
-        catch (e) { console.error(`[GameEngine] Offline sim error in ${sys.name}:`, e); }
+        catch (e) {
+          console.error(`[GameEngine] Offline sim error in ${sys.name}:`, e);
+          this._log?.log('GameEngine', `Offline sim error in ${sys.name}: ${e?.message ?? e}`, 'error');
+        }
       });
       remaining -= this.TICK_RATE_MS;
     }
@@ -115,13 +122,20 @@ export class GameEngine {
       const dt = this.TICK_RATE_MS / 1000; // in seconds
       this._systems.forEach(sys => {
         try { sys.update(dt); }
-        catch (e) { console.error(`[GameEngine] Error in system "${sys.name}":`, e); }
+        catch (e) {
+          console.error(`[GameEngine] Error in system "${sys.name}":`, e);
+          this._log?.log('GameEngine', `Error in system "${sys.name}": ${e?.message ?? e}`, 'error');
+        }
       });
       this._accumulator -= this.TICK_RATE_MS;
       this.tickCount++;
       // Emit UI tick every ~1 second for live progress bar updates
       if (this.tickCount % this._uiTickInterval === 0) {
         eventBus.emit('tick:ui', { tickCount: this.tickCount });
+      }
+      // Heartbeat log every ~10 seconds (200 ticks @ 20 tps)
+      if (this.tickCount % 200 === 0) {
+        this._log?.log('GameEngine', `heartbeat tick=${this.tickCount}`, 'info');
       }
     }
 
